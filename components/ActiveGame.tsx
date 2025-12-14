@@ -32,20 +32,34 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
   const availablePlayers = allPlayers.filter(p => !game.players.some(gp => gp.id === p.id));
 
   // Calculate live discrepancy for the modal logic
-  const totalRawCount = Object.values(counts).reduce((sum: number, val: unknown) => {
+  const totalRawCount: number = Object.values(counts).reduce((sum, val) => {
     const num = parseFloat(val as string);
     return sum + (isNaN(num) ? 0 : num);
   }, 0);
 
-  const totalValueCalculated = game.chipValue ? totalRawCount * game.chipValue : totalRawCount;
+  const currentChipValue = game.chipValue;
+  const totalValueCalculated: number = (typeof currentChipValue === 'number') 
+    ? totalRawCount * currentChipValue 
+    : totalRawCount;
   
+  const targetChips = (typeof currentChipValue === 'number' && currentChipValue > 0)
+    ? report.totalBuyIn / currentChipValue
+    : report.totalBuyIn;
+
   // Handle rounding for discrepancy check
   const totalValueRounded = Math.round(totalValueCalculated * 100) / 100;
   const discrepancy = Math.round((totalValueRounded - report.totalBuyIn) * 100) / 100;
 
+  // Helper for input conversion
+  const inputChips = parseFloat(amount) || 0;
+  const inputValue = (typeof currentChipValue === 'number') ? inputChips * currentChipValue : inputChips;
+
   const handleTransaction = () => {
-    const amt = parseFloat(amount);
-    if (isNaN(amt) || amt <= 0) return;
+    const chipCount = parseFloat(amount);
+    if (isNaN(chipCount) || chipCount <= 0) return;
+
+    // Convert chips to value for storage
+    const txAmount = (typeof game.chipValue === 'number') ? chipCount * game.chipValue : chipCount;
 
     const newTx: Transaction = {
       id: crypto.randomUUID(),
@@ -53,7 +67,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
       type: modalType === 'BUY_IN' ? TransactionType.BUY_IN : TransactionType.TRANSFER,
       fromId: modalType === 'BUY_IN' ? 'BANK' : selectedPlayerId,
       toId: modalType === 'BUY_IN' ? selectedPlayerId : targetPlayerId,
-      amount: amt
+      amount: txAmount
     };
 
     const updatedGame = {
@@ -84,8 +98,9 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
     };
 
     // If initial buy in provided
-    const buyInAmt = parseFloat(amount);
-    if (!isNaN(buyInAmt) && buyInAmt > 0) {
+    const buyInChips = parseFloat(amount);
+    if (!isNaN(buyInChips) && buyInChips > 0) {
+      const buyInVal = (typeof game.chipValue === 'number') ? buyInChips * game.chipValue : buyInChips;
       updatedGame.transactions = [
         {
           id: crypto.randomUUID(),
@@ -93,7 +108,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
           type: TransactionType.BUY_IN,
           fromId: 'BANK',
           toId: player.id,
-          amount: buyInAmt
+          amount: buyInVal
         },
         ...updatedGame.transactions
       ];
@@ -118,7 +133,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
       const num = parseFloat(val as string);
       if (!isNaN(num)) {
         // If chipValue is set, we convert the count to value here
-        const finalValue = game.chipValue ? num * game.chipValue : num;
+        const finalValue = (typeof game.chipValue === 'number') ? num * game.chipValue : num;
         updatedStates[pid] = {
           ...updatedStates[pid],
           finalChips: finalValue
@@ -170,20 +185,20 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
       {/* Header Actions */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-slate-800/50 p-4 rounded-xl border border-slate-700/50 backdrop-blur-md sticky top-4 z-10 shadow-lg">
+      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-neutral-900/50 p-4 rounded-xl border border-neutral-800 backdrop-blur-md sticky top-4 z-10 shadow-lg">
         <div>
-          <h2 className="text-2xl font-bold text-white">Active Session</h2>
-          <p className="text-slate-400 text-sm flex items-center gap-2 flex-wrap">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">Active Session</h2>
+          <p className="text-neutral-400 text-sm flex items-center gap-2 flex-wrap">
+            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
             Started {new Date(game.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            <span className="mx-1">•</span>
+            <span className="mx-1 text-neutral-600">|</span>
             {game.players.length} Players
-            <span className="mx-1">•</span>
+            <span className="mx-1 text-neutral-600">|</span>
             Bank: {formatCurrency(report.totalBuyIn)}
             {game.chipValue && (
               <>
-                <span className="mx-1">•</span>
-                <span className="text-emerald-400">Chip Value: {formatCurrency(game.chipValue)}</span>
+                <span className="mx-1 text-neutral-600">|</span>
+                <span className="text-red-400 font-medium">Chip Value: {formatCurrency(game.chipValue)}</span>
               </>
             )}
           </p>
@@ -203,22 +218,22 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
           if (!stats) return null;
 
           return (
-            <Card key={player.id} className="relative overflow-hidden group hover:border-emerald-500/50 transition-colors">
+            <Card key={player.id} className="relative overflow-hidden group hover:border-red-600/50 transition-colors bg-neutral-900 border-neutral-800">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-bold text-white">{player.name}</h3>
-                  <div className="text-xs text-slate-400 uppercase tracking-wider mt-1">Status</div>
+                  <h3 className="text-lg font-bold text-white group-hover:text-red-400 transition-colors">{player.name}</h3>
+                  <div className="text-xs text-neutral-500 uppercase tracking-wider mt-1">Status</div>
                 </div>
-                <div className="bg-slate-900/50 p-2 rounded-lg text-emerald-400 font-mono text-xl font-bold border border-slate-700/50">
+                <div className="bg-neutral-950 p-2 rounded-lg text-white font-mono text-xl font-bold border border-neutral-800">
                    {formatCurrency(stats.netInvested)}
-                   <span className="text-[10px] text-slate-500 block text-right font-sans font-normal">INVESTED</span>
+                   <span className="text-[10px] text-neutral-500 block text-right font-sans font-normal">INVESTED</span>
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 border-t border-neutral-800 pt-2">
                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">Buy-ins</span>
-                    <span className="text-slate-200">{formatCurrency(stats.totalBuyIn)}</span>
+                    <span className="text-neutral-400">Buy-ins</span>
+                    <span className="text-neutral-200">{formatCurrency(stats.totalBuyIn)}</span>
                  </div>
                  {stats.transfersIn > 0 && (
                    <div className="flex justify-between text-sm">
@@ -228,8 +243,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
                  )}
                  {stats.transfersOut > 0 && (
                    <div className="flex justify-between text-sm">
-                      <span className="text-emerald-400">Loaned</span>
-                      <span className="text-emerald-300">-{formatCurrency(stats.transfersOut)}</span>
+                      <span className="text-green-500">Loaned</span>
+                      <span className="text-green-400">-{formatCurrency(stats.transfersOut)}</span>
                    </div>
                  )}
               </div>
@@ -242,7 +257,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
       <Card title="Ledger" className="h-96 overflow-y-auto">
         <div className="space-y-3">
           {game.transactions.length === 0 ? (
-            <div className="text-center text-slate-500 py-10 flex flex-col items-center">
+            <div className="text-center text-neutral-500 py-10 flex flex-col items-center">
               <History size={48} className="mb-4 opacity-20" />
               <p>No transactions yet. Buy chips to start.</p>
             </div>
@@ -252,23 +267,23 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
               const toName = tx.toId === 'BANK' ? 'Bank' : game.players.find(p => p.id === tx.toId)?.name || 'Unknown';
               
               return (
-                <div key={tx.id} className="flex items-center justify-between p-3 bg-slate-900/40 rounded-lg border border-slate-700/30">
+                <div key={tx.id} className="flex items-center justify-between p-3 bg-black/40 rounded-lg border border-neutral-800/50">
                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${tx.type === 'BUY_IN' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                      <div className={`p-2 rounded-full ${tx.type === 'BUY_IN' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
                         {tx.type === 'BUY_IN' ? <DollarSign size={16} /> : <ArrowRightLeft size={16} />}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-slate-200">
+                        <div className="text-sm font-medium text-neutral-200">
                           {tx.type === 'BUY_IN' 
                             ? `${toName} bought in` 
                             : `${fromName} ➔ ${toName}`}
                         </div>
-                        <div className="text-xs text-slate-500">
+                        <div className="text-xs text-neutral-500">
                           {new Date(tx.timestamp).toLocaleTimeString()}
                         </div>
                       </div>
                    </div>
-                   <div className="font-mono font-bold text-slate-200">
+                   <div className="font-mono font-bold text-neutral-200">
                       {formatCurrency(tx.amount)}
                    </div>
                 </div>
@@ -291,15 +306,22 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
             value={selectedPlayerId}
             onChange={(e) => setSelectedPlayerId(e.target.value)}
           />
-          <Input 
-            label="Amount"
-            type="number"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="e.g. 500"
-            autoFocus
-          />
+          <div>
+            <Input 
+              label="Amount (Chips)"
+              type="number"
+              step="1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="e.g. 500"
+              autoFocus
+            />
+            {amount && game.chipValue && (
+              <div className="text-right text-xs text-neutral-400 mt-1">
+                Value: <span className="text-green-500 font-mono">{formatCurrency(inputValue)}</span>
+              </div>
+            )}
+          </div>
           <Button className="w-full" onClick={handleTransaction}>Confirm Buy In</Button>
         </div>
       </Modal>
@@ -330,15 +352,22 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
               <AlertCircle size={12}/> Cannot transfer to self
             </p>
           )}
-          <Input 
-            label="Amount"
-            type="number"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="e.g. 100"
-            autoFocus
-          />
+          <div>
+            <Input 
+              label="Amount (Chips)"
+              type="number"
+              step="1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="e.g. 100"
+              autoFocus
+            />
+             {amount && game.chipValue && (
+              <div className="text-right text-xs text-neutral-400 mt-1">
+                Value: <span className="text-green-500 font-mono">{formatCurrency(inputValue)}</span>
+              </div>
+            )}
+          </div>
           <Button 
             className="w-full" 
             onClick={handleTransaction}
@@ -356,15 +385,15 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
         title="Add Player to Table"
       >
         <div className="space-y-4">
-           <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+           <div className="flex bg-neutral-900 rounded-lg p-1 border border-neutral-800">
              <button 
-                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${newPlayerMode === 'EXISTING' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${newPlayerMode === 'EXISTING' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500 hover:text-white'}`}
                 onClick={() => setNewPlayerMode('EXISTING')}
              >
                Existing Player
              </button>
              <button 
-                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${newPlayerMode === 'NEW' ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${newPlayerMode === 'NEW' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500 hover:text-white'}`}
                 onClick={() => setNewPlayerMode('NEW')}
              >
                Create New
@@ -380,7 +409,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
                   onChange={(e) => setPlayerToAddId(e.target.value)}
                 />
              ) : (
-                <p className="text-center text-slate-500 py-2">All existing players are already in the game.</p>
+                <p className="text-center text-neutral-500 py-2">All existing players are already in the game.</p>
              )
            ) : (
              <Input 
@@ -392,14 +421,21 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
              />
            )}
            
-           <Input 
-              label="Initial Buy-In (Optional)"
-              type="number"
-              step="0.01"
-              placeholder="0"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-           />
+           <div>
+            <Input 
+                label="Initial Buy-In (Chips) - Optional"
+                type="number"
+                step="1"
+                placeholder="0"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+            />
+            {amount && game.chipValue && parseFloat(amount) > 0 && (
+              <div className="text-right text-xs text-neutral-400 mt-1">
+                Value: <span className="text-green-500 font-mono">{formatCurrency(inputValue)}</span>
+              </div>
+            )}
+           </div>
 
            <Button 
               className="w-full" 
@@ -419,26 +455,37 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
       >
         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
           
-          <div className={`grid ${game.chipValue ? 'grid-cols-3' : 'grid-cols-2'} gap-4 bg-slate-800/50 p-4 rounded-lg border border-slate-700`}>
-             <div className="text-center border-r border-slate-700">
-                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Bank Total</div>
-                <div className="text-xl font-bold text-white font-mono">{formatCurrency(report.totalBuyIn)}</div>
+          <div className={`grid ${game.chipValue ? 'grid-cols-4' : 'grid-cols-2'} gap-2 bg-neutral-900/50 p-4 rounded-lg border border-neutral-800`}>
+             <div className="text-center border-r border-neutral-800 px-1">
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Bank Total</div>
+                <div className="text-lg font-bold text-white font-mono">{formatCurrency(report.totalBuyIn)}</div>
              </div>
+             
              {game.chipValue && (
-               <div className="text-center border-r border-slate-700">
-                  <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Chips</div>
-                  <div className="text-xl font-bold text-slate-200 font-mono">{totalRawCount}</div>
+               <div className="text-center border-r border-neutral-800 px-1">
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Target Chips</div>
+                  <div className="text-lg font-bold text-blue-400 font-mono">{targetChips.toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
                </div>
              )}
-             <div className="text-center">
-                <div className="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Value</div>
-                <div className={`text-xl font-bold font-mono ${discrepancy === 0 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+
+             {game.chipValue && (
+               <div className="text-center border-r border-neutral-800 px-1">
+                  <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Actual Chips</div>
+                  <div className={`text-lg font-bold font-mono ${Math.round(totalRawCount) === Math.round(targetChips) ? 'text-green-500' : 'text-white'}`}>
+                    {totalRawCount.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                  </div>
+               </div>
+             )}
+             
+             <div className="text-center px-1">
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Actual Value</div>
+                <div className={`text-lg font-bold font-mono ${discrepancy === 0 ? 'text-green-500' : 'text-yellow-400'}`}>
                    {formatCurrency(totalValueRounded)}
                 </div>
              </div>
           </div>
 
-          <div className="flex justify-between items-center text-sm text-slate-400 mb-2">
+          <div className="flex justify-between items-center text-sm text-neutral-400 mb-2">
             <span>Player</span>
             <div className="flex gap-4">
               <span>{game.chipValue ? 'Chip Count' : 'Value ($)'}</span>
@@ -452,17 +499,17 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
 
             return (
               <div key={p.id} className="flex items-center justify-between gap-4 py-1">
-                 <label className="text-sm font-medium text-slate-200">{p.name}</label>
+                 <label className="text-sm font-medium text-neutral-200">{p.name}</label>
                  <div className="flex items-center gap-4">
                    <Input 
                      type="number" 
                      step={game.chipValue ? "1" : "0.01"}
-                     className="w-24 text-right font-mono py-1.5 h-8"
+                     className="w-24 text-right font-mono py-1.5 h-8 bg-neutral-950"
                      value={counts[p.id] || '0'}
                      onChange={(e) => handleCountChange(p.id, e.target.value)}
                    />
                    {game.chipValue && (
-                     <div className="w-20 text-right font-mono text-emerald-400 text-sm">
+                     <div className="w-20 text-right font-mono text-green-500 text-sm">
                         {formatCurrency(calculatedVal)}
                      </div>
                    )}
@@ -473,7 +520,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
 
           {/* Discrepancy Error Message - Only shown after attempted finish */}
           {showMismatchWarning && discrepancy !== 0 && (
-            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2">
+            <div className="mt-4 p-3 bg-red-900/20 border border-red-500/50 rounded-lg flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2">
                <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
                <div className="text-sm">
                   <div className="font-bold text-red-400">Mismatch Detected</div>
@@ -490,7 +537,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
             </div>
           )}
 
-          <div className="pt-4 border-t border-slate-800">
+          <div className="pt-4 border-t border-neutral-800">
              <Button 
                className="w-full" 
                variant={showMismatchWarning && discrepancy !== 0 ? 'secondary' : 'danger'} 

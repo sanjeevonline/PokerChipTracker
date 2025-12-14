@@ -30,44 +30,46 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, games, onB
       <div className="flex items-center gap-4">
         <Button onClick={onBack} variant="secondary" icon={<ArrowLeft size={18}/>}>Back to List</Button>
         <div>
-           <h2 className="text-2xl font-bold text-white">{player.name}</h2>
-           <p className="text-slate-400 text-sm">Player Profile</p>
+           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+             {player.name}
+             <span className="text-xs bg-red-900/30 text-red-400 px-2 py-1 rounded border border-red-900/50 uppercase">Profile</span>
+           </h2>
         </div>
       </div>
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-slate-800/80 border-slate-700">
-           <div className="text-slate-400 text-xs uppercase mb-1 flex items-center gap-1">
+        <Card className="bg-neutral-900/80 border-neutral-800">
+           <div className="text-neutral-400 text-xs uppercase mb-1 flex items-center gap-1">
              <Trophy size={12}/> Net Earnings
            </div>
-           <div className={`text-2xl font-bold font-mono ${stats.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+           <div className={`text-2xl font-bold font-mono ${stats.netProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
              {stats.netProfit > 0 ? '+' : ''}{formatCurrency(stats.netProfit)}
            </div>
         </Card>
         
-        <Card className="bg-slate-800/80 border-slate-700">
-           <div className="text-slate-400 text-xs uppercase mb-1">Win Rate</div>
+        <Card className="bg-neutral-900/80 border-neutral-800">
+           <div className="text-neutral-400 text-xs uppercase mb-1">Win Rate</div>
            <div className="text-2xl font-bold text-white font-mono">
              {stats.gamesPlayed > 0 ? Math.round((stats.wins / stats.gamesPlayed) * 100) : 0}%
            </div>
-           <div className="text-xs text-slate-500 mt-1">{stats.wins}W - {stats.losses}L</div>
+           <div className="text-xs text-neutral-500 mt-1">{stats.wins}W - {stats.losses}L</div>
         </Card>
 
-        <Card className="bg-slate-800/80 border-slate-700">
-           <div className="text-slate-400 text-xs uppercase mb-1 flex items-center gap-1">
+        <Card className="bg-neutral-900/80 border-neutral-800">
+           <div className="text-neutral-400 text-xs uppercase mb-1 flex items-center gap-1">
              <TrendingUp size={12}/> Biggest Win
            </div>
-           <div className="text-2xl font-bold text-emerald-400 font-mono">
+           <div className="text-2xl font-bold text-green-500 font-mono">
              +{formatCurrency(stats.biggestWin)}
            </div>
         </Card>
 
-        <Card className="bg-slate-800/80 border-slate-700">
-           <div className="text-slate-400 text-xs uppercase mb-1 flex items-center gap-1">
+        <Card className="bg-neutral-900/80 border-neutral-800">
+           <div className="text-neutral-400 text-xs uppercase mb-1 flex items-center gap-1">
              <TrendingDown size={12}/> Biggest Loss
            </div>
-           <div className="text-2xl font-bold text-red-400 font-mono">
+           <div className="text-2xl font-bold text-red-500 font-mono">
              {formatCurrency(stats.biggestLoss)}
            </div>
         </Card>
@@ -77,20 +79,20 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, games, onB
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
          <Card className="flex items-center justify-between">
             <div>
-              <div className="text-slate-400 text-xs uppercase mb-1 flex items-center gap-1">
-                 <HandCoins size={14} className="text-red-400"/> Lifetime Borrowed
+              <div className="text-neutral-400 text-xs uppercase mb-1 flex items-center gap-1">
+                 <HandCoins size={14} className="text-red-500"/> Lifetime Borrowed
               </div>
               <div className="text-xl font-bold text-white font-mono">{formatCurrency(stats.totalBorrowed)}</div>
-              <div className="text-xs text-slate-500 mt-1">Total value of transfers received</div>
+              <div className="text-xs text-neutral-500 mt-1">Total value of transfers received</div>
             </div>
          </Card>
          <Card className="flex items-center justify-between">
             <div>
-              <div className="text-slate-400 text-xs uppercase mb-1 flex items-center gap-1">
-                 <PiggyBank size={14} className="text-emerald-400"/> Lifetime Loaned
+              <div className="text-neutral-400 text-xs uppercase mb-1 flex items-center gap-1">
+                 <PiggyBank size={14} className="text-green-500"/> Lifetime Loaned
               </div>
               <div className="text-xl font-bold text-white font-mono">{formatCurrency(stats.totalLoaned)}</div>
-              <div className="text-xs text-slate-500 mt-1">Total value of transfers sent</div>
+              <div className="text-xs text-neutral-500 mt-1">Total value of transfers sent</div>
             </div>
          </Card>
       </div>
@@ -107,11 +109,11 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, games, onB
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="date" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                <XAxis dataKey="date" stroke="#525252" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#525252" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
                 <Tooltip 
-                  cursor={{stroke: '#334155'}}
-                  contentStyle={{backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: '#f8fafc'}}
+                  cursor={{stroke: '#525252'}}
+                  contentStyle={{backgroundColor: '#0a0a0a', border: '1px solid #262626', borderRadius: '8px', color: '#f5f5f5'}}
                   formatter={(value: number) => [formatCurrency(value), 'Total Profit']}
                 />
                 <Area 
@@ -131,13 +133,13 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, games, onB
       {/* Game History List */}
       <Card title="Game History">
          <div className="space-y-1">
-           {stats.history.length === 0 && <p className="text-slate-500 text-sm">No games played.</p>}
+           {stats.history.length === 0 && <p className="text-neutral-500 text-sm">No games played.</p>}
            {stats.history.map((h, i) => (
-             <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-700/30 transition-colors border-b border-slate-700/30 last:border-0">
-               <div className="text-sm text-slate-300">
+             <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-neutral-800/30 transition-colors border-b border-neutral-800/50 last:border-0">
+               <div className="text-sm text-neutral-300">
                   {new Date(h.date).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
                </div>
-               <div className={`font-mono font-bold ${h.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+               <div className={`font-mono font-bold ${h.profit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                  {h.profit > 0 ? '+' : ''}{formatCurrency(h.profit)}
                </div>
              </div>
