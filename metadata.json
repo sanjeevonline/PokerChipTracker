@@ -1,0 +1,5 @@
+{
+  "name": "ChipTracker",
+  "description": "A professional poker bankroll and game tracking application for managing home games, buy-ins, transfers, and final settlements with historical analytics.",
+  "requestFramePermissions": []
+}
