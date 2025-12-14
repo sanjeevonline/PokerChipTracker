@@ -329,8 +329,9 @@ export default function App() {
             className="flex items-center gap-2 font-bold text-xl cursor-pointer group"
             onClick={() => setCurrentView(View.DASHBOARD)}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-red-600 to-red-800 rounded-lg flex items-center justify-center text-white shadow-lg shadow-red-900/20 group-hover:scale-105 transition-transform">
-              <span className="font-serif text-lg">♠</span>
+            {/* Spade Card Icon - Red Base, Black Spade */}
+            <div className="w-8 h-10 bg-red-600 rounded border border-red-800 flex items-center justify-center text-black shadow-lg shadow-red-900/20 group-hover:scale-105 transition-transform">
+              <span className="font-serif text-3xl leading-none pb-1">♠</span>
             </div>
             <span className="group-hover:text-white transition-colors">ChipTracker</span>
           </div>
