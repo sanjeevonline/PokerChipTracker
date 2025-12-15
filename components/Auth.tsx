@@ -24,7 +24,7 @@ export const Auth: React.FC = () => {
 
     try {
       if (mode === 'REGISTER') {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await (supabase.auth as any).signUp({
           email,
           password,
         });
@@ -32,7 +32,7 @@ export const Auth: React.FC = () => {
         setMessage("Registration successful! Please check your email to verify your account.");
         setMode('LOGIN');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { error } = await (supabase.auth as any).signInWithPassword({
           email,
           password,
         });
