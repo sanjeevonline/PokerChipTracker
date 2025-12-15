@@ -11,7 +11,7 @@ import { PlayersList } from './components/PlayersList';
 import { PlayerProfile } from './components/PlayerProfile';
 import { GroupSelection } from './components/GroupSelection';
 import { Button, Modal, Input, Card } from './components/UI';
-import { Plus, LayoutDashboard, Settings, Users, Database, ChevronLeft, PlayCircle, LogOut, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'; 
+import { Plus, LayoutDashboard, Settings, Users, Database, ChevronLeft, PlayCircle, LogOut, Loader2, CheckCircle, XCircle, AlertTriangle, Coins, Banknote } from 'lucide-react'; 
 
 enum View {
   GROUPS,
@@ -49,8 +49,9 @@ export default function App() {
   
   // New Game Modal State
   const [isNewGameModalOpen, setIsNewGameModalOpen] = useState(false);
+  const [gameMode, setGameMode] = useState<'SINGLE' | 'MULTI'>('SINGLE'); // SINGLE = Same Value, MULTI = Different Values
   const [newGamePlayers, setNewGamePlayers] = useState<string[]>([]); // Selected IDs
-  const [newGameBuyIns, setNewGameBuyIns] = useState<Record<string, string>>({}); // ID -> Chip Count
+  const [newGameBuyIns, setNewGameBuyIns] = useState<Record<string, string>>({}); // ID -> Chip Count or Amount
   const [newGameChipValue, setNewGameChipValue] = useState<string>('0.25');
   const [newPlayerName, setNewPlayerName] = useState('');
 
@@ -268,7 +269,8 @@ export default function App() {
     // Auto select in new game modal
     if (isNewGameModalOpen) {
        setNewGamePlayers(prev => [...prev, newPlayer.id]);
-       setNewGameBuyIns(prev => ({ ...prev, [newPlayer.id]: '100' }));
+       const defaultAmount = gameMode === 'SINGLE' ? '100' : '25';
+       setNewGameBuyIns(prev => ({ ...prev, [newPlayer.id]: defaultAmount }));
     }
 
     return newPlayer;
@@ -281,12 +283,15 @@ export default function App() {
 
     const selectedPlayers = players.filter(p => newGamePlayers.includes(p.id));
     const startTime = Date.now();
-    const chipValue = parseFloat(newGameChipValue) || 0.25;
+    const chipValue = gameMode === 'SINGLE' ? (parseFloat(newGameChipValue) || 0.25) : undefined;
     
     const initialTransactions: Transaction[] = [];
     selectedPlayers.forEach(p => {
-       const chips = parseFloat(newGameBuyIns[p.id] || '100');
-       const amount = chips * chipValue;
+       const inputValue = parseFloat(newGameBuyIns[p.id]);
+       // If Single mode: value = chips * chipValue
+       // If Multi mode: value = input (dollars)
+       const amount = gameMode === 'SINGLE' ? inputValue * (chipValue || 0) : inputValue;
+       
        if (amount > 0) {
          initialTransactions.push({
            id: crypto.randomUUID(),
@@ -307,7 +312,7 @@ export default function App() {
       transactions: initialTransactions,
       playerStates: {},
       isActive: true,
-      chipValue: chipValue
+      chipValue: chipValue // undefined if MULTI
     };
 
     setGames([newGame, ...games]);
@@ -317,6 +322,7 @@ export default function App() {
     setNewGamePlayers([]);
     setNewGameBuyIns({});
     setNewGameChipValue('0.25');
+    setGameMode('SINGLE');
 
     await api.saveGame(newGame);
   };
@@ -360,7 +366,9 @@ export default function App() {
     setNewGamePlayers(prev => {
       if (prev.includes(id)) return prev.filter(p => p !== id);
       else {
-        setNewGameBuyIns(prevBI => ({ ...prevBI, [id]: '100' }));
+        // Default Buy-in based on mode
+        const defaultAmt = gameMode === 'SINGLE' ? '100' : '25';
+        setNewGameBuyIns(prevBI => ({ ...prevBI, [id]: defaultAmt }));
         return [...prev, id];
       }
     });
@@ -368,6 +376,17 @@ export default function App() {
 
   const handleBuyInChange = (id: string, value: string) => {
     setNewGameBuyIns(prev => ({ ...prev, [id]: value }));
+  };
+
+  // When toggling mode, update defaults for currently selected players
+  const handleGameModeChange = (mode: 'SINGLE' | 'MULTI') => {
+    setGameMode(mode);
+    // Update default buy ins for selected players to match context
+    const updatedBuyIns = { ...newGameBuyIns };
+    newGamePlayers.forEach(id => {
+        updatedBuyIns[id] = mode === 'SINGLE' ? '100' : '25';
+    });
+    setNewGameBuyIns(updatedBuyIns);
   };
 
   // --- Rendering Logic ---
@@ -642,32 +661,60 @@ export default function App() {
         title={`New Game: ${currentGroup?.name}`}
       >
         <div className="space-y-6">
-          <Input 
-             label="Chip Value ($)"
-             type="number"
-             step="0.01"
-             value={newGameChipValue}
-             onChange={(e) => {
-               setNewGameChipValue(e.target.value);
-             }}
-          />
+          {/* Game Type Selection */}
+          <div className="flex gap-2 bg-neutral-900 p-1 rounded-lg border border-neutral-800">
+             <button 
+                onClick={() => handleGameModeChange('SINGLE')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded transition-all ${gameMode === 'SINGLE' ? 'bg-neutral-800 text-white shadow shadow-black' : 'text-neutral-500 hover:text-neutral-300'}`}
+             >
+                <Coins size={16} />
+                All Chips Same Value
+             </button>
+             <button 
+                onClick={() => handleGameModeChange('MULTI')}
+                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded transition-all ${gameMode === 'MULTI' ? 'bg-neutral-800 text-white shadow shadow-black' : 'text-neutral-500 hover:text-neutral-300'}`}
+             >
+                <Banknote size={16} />
+                Different Values
+             </button>
+          </div>
+          
+          {gameMode === 'SINGLE' && (
+            <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+              <Input 
+                label="Chip Value ($)"
+                type="number"
+                step="0.01"
+                value={newGameChipValue}
+                onChange={(e) => {
+                  setNewGameChipValue(e.target.value);
+                }}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-medium text-neutral-300">Select Players & Buy-In</h3>
+              <h3 className="text-sm font-medium text-neutral-300">Select Players & Starting Stack</h3>
               <div className="text-xs text-neutral-400">
                 {newGamePlayers.length} selected
               </div>
             </div>
             
-            <div className="max-h-[50vh] overflow-y-auto border border-neutral-800 rounded-lg bg-neutral-900">
+            <div className="max-h-[40vh] overflow-y-auto border border-neutral-800 rounded-lg bg-neutral-900">
               <table className="w-full text-left text-sm">
                 <thead className="bg-neutral-800 text-neutral-400 sticky top-0">
                   <tr>
                     <th className="p-3 w-10"></th>
                     <th className="p-3">Player</th>
-                    <th className="p-3 w-32">Buy-In (Chips)</th>
-                    <th className="p-3 w-24 text-right">Value ($)</th>
+                    {gameMode === 'SINGLE' ? (
+                       <>
+                         <th className="p-3 w-32">Buy-In (Chips)</th>
+                         <th className="p-3 w-24 text-right">Value ($)</th>
+                       </>
+                    ) : (
+                       <th className="p-3 w-32 text-right">Value ($)</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-800">
@@ -678,10 +725,13 @@ export default function App() {
                   )}
                   {groupPlayers.map(p => {
                     const isSelected = newGamePlayers.includes(p.id);
-                    const chipCountStr = newGameBuyIns[p.id] || '100';
+                    // Default varies by mode
+                    const defaultVal = gameMode === 'SINGLE' ? '100' : '25';
+                    const inputValueStr = newGameBuyIns[p.id] || defaultVal;
+                    
                     const chipValNum = parseFloat(newGameChipValue) || 0;
-                    const chipCountNum = parseFloat(chipCountStr) || 0;
-                    const totalVal = chipCountNum * chipValNum;
+                    const inputNum = parseFloat(inputValueStr) || 0;
+                    const totalVal = gameMode === 'SINGLE' ? inputNum * chipValNum : inputNum;
 
                     return (
                       <tr 
@@ -702,19 +752,35 @@ export default function App() {
                         >
                           {p.name}
                         </td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            step="1" 
-                            disabled={!isSelected}
-                            value={chipCountStr}
-                            onChange={(e) => handleBuyInChange(p.id, e.target.value)}
-                            className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-3 text-right font-mono text-neutral-300">
-                          {isSelected ? formatCurrency(totalVal) : '-'}
-                        </td>
+                        
+                        {gameMode === 'SINGLE' ? (
+                            <>
+                                <td className="p-3">
+                                  <input
+                                    type="number"
+                                    step="1" 
+                                    disabled={!isSelected}
+                                    value={inputValueStr}
+                                    onChange={(e) => handleBuyInChange(p.id, e.target.value)}
+                                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none"
+                                  />
+                                </td>
+                                <td className="p-3 text-right font-mono text-neutral-300">
+                                  {isSelected ? formatCurrency(totalVal) : '-'}
+                                </td>
+                            </>
+                        ) : (
+                            <td className="p-3">
+                                <input
+                                type="number"
+                                step="1" 
+                                disabled={!isSelected}
+                                value={inputValueStr}
+                                onChange={(e) => handleBuyInChange(p.id, e.target.value)}
+                                className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none font-mono"
+                                />
+                            </td>
+                        )}
                       </tr>
                     );
                   })}

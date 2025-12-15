@@ -30,6 +30,9 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
   const report = useMemo(() => calculateSettlement(game), [game]);
 
   const availablePlayers = allPlayers.filter(p => !game.players.some(gp => gp.id === p.id));
+  
+  // If chipValue is missing, it's Multi-Denom mode (Values are tracked in dollars directly)
+  const isMultiDenom = game.chipValue === undefined || game.chipValue === null;
 
   // Calculate live discrepancy for the modal logic
   const totalRawCount: number = (Object.values(counts) as string[]).reduce((sum: number, val: string) => {
@@ -38,10 +41,15 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
   }, 0);
 
   const currentChipValue = game.chipValue;
+  
+  // Logic for End Game calc
+  // If single denom, total value = count * chip value
+  // If multi denom, total value = raw count (since inputs are dollars)
   const totalValueCalculated: number = (typeof currentChipValue === 'number') 
     ? totalRawCount * currentChipValue 
     : totalRawCount;
   
+  // Target in Chips (only used for Single Denom UI)
   const targetChips = (typeof currentChipValue === 'number' && currentChipValue > 0)
     ? report.totalBuyIn / currentChipValue
     : report.totalBuyIn;
@@ -51,15 +59,16 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
   const discrepancy = Math.round((totalValueRounded - report.totalBuyIn) * 100) / 100;
 
   // Helper for input conversion
-  const inputChips = parseFloat(amount) || 0;
-  const inputValue = (typeof currentChipValue === 'number') ? inputChips * currentChipValue : inputChips;
+  const inputAmount = parseFloat(amount) || 0;
+  // If Multi, the input IS the value. If Single, input is chips, need to multiply.
+  const txValue = (typeof currentChipValue === 'number') ? inputAmount * currentChipValue : inputAmount;
 
   const handleTransaction = () => {
-    const chipCount = parseFloat(amount);
-    if (isNaN(chipCount) || chipCount <= 0) return;
+    const inputValue = parseFloat(amount);
+    if (isNaN(inputValue) || inputValue <= 0) return;
 
-    // Convert chips to value for storage
-    const txAmount = (typeof game.chipValue === 'number') ? chipCount * game.chipValue : chipCount;
+    // Convert chips to value for storage (if applicable)
+    const txAmount = (typeof game.chipValue === 'number') ? inputValue * game.chipValue : inputValue;
 
     let type = TransactionType.TRANSFER;
     let fromId = selectedPlayerId;
@@ -112,9 +121,9 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
     };
 
     // If initial buy in provided
-    const buyInChips = parseFloat(amount);
-    if (!isNaN(buyInChips) && buyInChips > 0) {
-      const buyInVal = (typeof game.chipValue === 'number') ? buyInChips * game.chipValue : buyInChips;
+    const inputBuyIn = parseFloat(amount);
+    if (!isNaN(inputBuyIn) && inputBuyIn > 0) {
+      const buyInVal = (typeof game.chipValue === 'number') ? inputBuyIn * game.chipValue : inputBuyIn;
       updatedGame.transactions = [
         {
           id: crypto.randomUUID(),
@@ -146,7 +155,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
     Object.entries(counts).forEach(([pid, val]) => {
       const num = parseFloat(val as string);
       if (!isNaN(num)) {
-        // If chipValue is set, we convert the count to value here
+        // If chipValue is set, we convert the count to value here.
+        // If multi-denom (chipValue undefined), num IS the value.
         const finalValue = (typeof game.chipValue === 'number') ? num * game.chipValue : num;
         updatedStates[pid] = {
           ...updatedStates[pid],
@@ -182,10 +192,11 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
   const openCountModal = () => {
     // Pre-fill with existing counts or 0
     // Note: finalChips is stored as DOLLAR VALUE. If chipValue is set, we need to convert back to count for editing.
+    // If Multi-denom, we just use the dollar value directly.
     const initialCounts: Record<string, string> = {};
     game.players.forEach(p => {
        const moneyVal = game.playerStates[p.id]?.finalChips || 0;
-       if (game.chipValue && game.chipValue > 0) {
+       if (typeof game.chipValue === 'number' && game.chipValue > 0) {
           initialCounts[p.id] = (moneyVal / game.chipValue).toString();
        } else {
           initialCounts[p.id] = moneyVal.toString();
@@ -209,7 +220,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
             {game.players.length} Players
             <span className="mx-1 text-neutral-600">|</span>
             Bank: {formatCurrency(report.totalBuyIn)}
-            {game.chipValue && (
+            {!isMultiDenom && game.chipValue && (
               <>
                 <span className="mx-1 text-neutral-600">|</span>
                 <span className="text-red-400 font-medium">Chip Value: {formatCurrency(game.chipValue)}</span>
@@ -336,17 +347,17 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
           />
           <div>
             <Input 
-              label="Amount (Chips)"
+              label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"}
               type="number"
-              step="1"
+              step={isMultiDenom ? "0.01" : "1"}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 500"
+              placeholder="e.g. 100"
               autoFocus
             />
-            {amount && game.chipValue && (
+            {amount && !isMultiDenom && game.chipValue && (
               <div className="text-right text-xs text-neutral-400 mt-1">
-                Value: <span className="text-green-500 font-mono">{formatCurrency(inputValue)}</span>
+                Value: <span className="text-green-500 font-mono">{formatCurrency(txValue)}</span>
               </div>
             )}
           </div>
@@ -372,17 +383,17 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
           />
           <div>
             <Input 
-              label="Amount (Chips)"
+              label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"}
               type="number"
-              step="1"
+              step={isMultiDenom ? "0.01" : "1"}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 1200"
+              placeholder="e.g. 50"
               autoFocus
             />
-            {amount && game.chipValue && (
+            {amount && !isMultiDenom && game.chipValue && (
               <div className="text-right text-xs text-neutral-400 mt-1">
-                Value: <span className="text-green-500 font-mono">{formatCurrency(inputValue)}</span>
+                Value: <span className="text-green-500 font-mono">{formatCurrency(txValue)}</span>
               </div>
             )}
           </div>
@@ -418,17 +429,17 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
           )}
           <div>
             <Input 
-              label="Amount (Chips)"
+              label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"}
               type="number"
-              step="1"
+              step={isMultiDenom ? "0.01" : "1"}
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              placeholder="e.g. 100"
+              placeholder="e.g. 25"
               autoFocus
             />
-             {amount && game.chipValue && (
+             {amount && !isMultiDenom && game.chipValue && (
               <div className="text-right text-xs text-neutral-400 mt-1">
-                Value: <span className="text-green-500 font-mono">{formatCurrency(inputValue)}</span>
+                Value: <span className="text-green-500 font-mono">{formatCurrency(txValue)}</span>
               </div>
             )}
           </div>
@@ -487,16 +498,16 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
            
            <div>
             <Input 
-                label="Initial Buy-In (Chips) - Optional"
+                label={isMultiDenom ? "Initial Buy-In ($) - Optional" : "Initial Buy-In (Chips) - Optional"}
                 type="number"
-                step="1"
+                step={isMultiDenom ? "0.01" : "1"}
                 placeholder="0"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
             />
-            {amount && game.chipValue && parseFloat(amount) > 0 && (
+            {amount && !isMultiDenom && game.chipValue && parseFloat(amount) > 0 && (
               <div className="text-right text-xs text-neutral-400 mt-1">
-                Value: <span className="text-green-500 font-mono">{formatCurrency(inputValue)}</span>
+                Value: <span className="text-green-500 font-mono">{formatCurrency(txValue)}</span>
               </div>
             )}
            </div>
@@ -519,20 +530,20 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
       >
         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
           
-          <div className={`grid ${game.chipValue ? 'grid-cols-4' : 'grid-cols-2'} gap-2 bg-neutral-900/50 p-4 rounded-lg border border-neutral-800`}>
+          <div className={`grid ${!isMultiDenom ? 'grid-cols-4' : 'grid-cols-2'} gap-2 bg-neutral-900/50 p-4 rounded-lg border border-neutral-800`}>
              <div className="text-center border-r border-neutral-800 px-1">
-                <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Bank Total</div>
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Bank Total ($)</div>
                 <div className="text-lg font-bold text-white font-mono">{formatCurrency(report.totalBuyIn)}</div>
              </div>
              
-             {game.chipValue && (
+             {!isMultiDenom && (
                <div className="text-center border-r border-neutral-800 px-1">
                   <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Target Chips</div>
                   <div className="text-lg font-bold text-blue-400 font-mono">{targetChips.toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
                </div>
              )}
 
-             {game.chipValue && (
+             {!isMultiDenom && (
                <div className="text-center border-r border-neutral-800 px-1">
                   <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Actual Chips</div>
                   <div className={`text-lg font-bold font-mono ${Math.round(totalRawCount) === Math.round(targetChips) ? 'text-green-500' : 'text-white'}`}>
@@ -542,7 +553,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
              )}
              
              <div className="text-center px-1">
-                <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Actual Value</div>
+                <div className="text-[10px] text-neutral-500 uppercase tracking-wider mb-1">Actual Value ($)</div>
                 <div className={`text-lg font-bold font-mono ${discrepancy === 0 ? 'text-green-500' : 'text-yellow-400'}`}>
                    {formatCurrency(totalValueRounded)}
                 </div>
@@ -552,14 +563,14 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
           <div className="flex justify-between items-center text-sm text-neutral-400 mb-2">
             <span>Player</span>
             <div className="flex gap-4">
-              <span>{game.chipValue ? 'Chip Count' : 'Value ($)'}</span>
-              {game.chipValue && <span className="w-20 text-right">Value ($)</span>}
+              <span>{isMultiDenom ? 'Final Value ($)' : 'Chip Count'}</span>
+              {!isMultiDenom && <span className="w-20 text-right">Value ($)</span>}
             </div>
           </div>
 
           {game.players.map(p => {
             const raw = parseFloat(counts[p.id] || '0');
-            const calculatedVal = isNaN(raw) ? 0 : raw * (game.chipValue || 1);
+            const calculatedVal = isNaN(raw) ? 0 : (isMultiDenom ? raw : raw * (game.chipValue || 1));
 
             return (
               <div key={p.id} className="flex items-center justify-between gap-4 py-1">
@@ -567,12 +578,12 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
                  <div className="flex items-center gap-4">
                    <Input 
                      type="number" 
-                     step={game.chipValue ? "1" : "0.01"}
-                     className="w-24 text-right font-mono py-1.5 h-8 bg-neutral-950"
+                     step={isMultiDenom ? "0.01" : "1"}
+                     className={`${isMultiDenom ? 'w-32' : 'w-24'} text-right font-mono py-1.5 h-8 bg-neutral-950`}
                      value={counts[p.id] || '0'}
                      onChange={(e) => handleCountChange(p.id, e.target.value)}
                    />
-                   {game.chipValue && (
+                   {!isMultiDenom && (
                      <div className="w-20 text-right font-mono text-green-500 text-sm">
                         {formatCurrency(calculatedVal)}
                      </div>
