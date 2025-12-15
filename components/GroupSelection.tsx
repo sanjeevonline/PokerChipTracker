@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Group, GameSession } from '../types';
 import { Button, Input, Modal, Card } from './UI';
-import { Plus, Users, ChevronRight, Database, PlayCircle, FolderPlus } from 'lucide-react';
+import { Plus, Users, ChevronRight, PlayCircle, FolderPlus } from 'lucide-react';
 
 interface GroupSelectionProps {
   groups: Group[];
@@ -9,7 +9,6 @@ interface GroupSelectionProps {
   onSelectGroup: (groupId: string) => void;
   onResumeGame: (groupId: string, gameId: string) => void;
   onCreateGroup: (name: string) => void;
-  onSeedData: () => void;
 }
 
 export const GroupSelection: React.FC<GroupSelectionProps> = ({ 
@@ -17,8 +16,7 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
   activeGames,
   onSelectGroup, 
   onResumeGame,
-  onCreateGroup, 
-  onSeedData 
+  onCreateGroup 
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -113,7 +111,7 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
               </Card>
             ))}
 
-            {/* Empty State / Add Card (Only shown if 0 groups, or as a very subtle option at end if desired, but here we only show if empty to prioritize existing groups) */}
+            {/* Empty State */}
             {groups.length === 0 && (
                  <button 
                    onClick={() => setIsModalOpen(true)}
@@ -128,14 +126,6 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
             )}
         </div>
       </div>
-
-      {groups.length === 0 && (
-         <div className="flex justify-center mt-4">
-            <Button variant="ghost" size="sm" onClick={onSeedData} icon={<Database size={14}/>}>
-               Load Demo Data (OTV Groups)
-            </Button>
-         </div>
-      )}
 
       {/* Create Modal */}
       <Modal 

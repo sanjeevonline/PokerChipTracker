@@ -8,8 +8,8 @@ import { History } from './components/History';
 import { PlayersList } from './components/PlayersList';
 import { PlayerProfile } from './components/PlayerProfile';
 import { GroupSelection } from './components/GroupSelection';
-import { Button, Modal, Input, Card } from './components/UI';
-import { Plus, LayoutDashboard, Settings, Users, Database, ChevronLeft, PlayCircle, LogOut, Loader2, CheckCircle, XCircle, AlertTriangle, Coins, Banknote } from 'lucide-react'; 
+import { Button, Modal, Input } from './components/UI';
+import { Plus, LayoutDashboard, Settings, Users, Database, ChevronLeft, LogOut, Loader2, Coins, Banknote } from 'lucide-react'; 
 
 enum View {
   GROUPS,
@@ -26,10 +26,6 @@ export default function App() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [games, setGames] = useState<GameSession[]>([]);
   const [players, setPlayers] = useState<Player[]>([]); // Global players
-  
-  // Connection Test State
-  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'error'>('checking');
-  const [dbError, setDbError] = useState<string>('');
   
   // View State
   const [isLoading, setIsLoading] = useState(true);
@@ -48,32 +44,6 @@ export default function App() {
   const [newGameBuyIns, setNewGameBuyIns] = useState<Record<string, string>>({}); // ID -> Chip Count or Amount
   const [newGameChipValue, setNewGameChipValue] = useState<string>('0.25');
   const [newPlayerName, setNewPlayerName] = useState('');
-
-  // Test Database Connection
-  useEffect(() => {
-    const testConnection = async () => {
-      if (!supabase) {
-         setDbStatus('error');
-         setDbError('Supabase client not initialized');
-         return;
-      }
-      try {
-        // Simple lightweight query to check connection and schema access
-        const { error } = await supabase.from('groups').select('id').limit(1);
-        if (error) {
-           throw error;
-        }
-        setDbStatus('connected');
-      } catch (err: any) {
-        console.error("DB Connection Test Failed:", err);
-        setDbStatus('error');
-        // Handle standard Error objects vs Supabase error objects
-        const errorMessage = err instanceof Error ? err.message : (err.message || JSON.stringify(err));
-        setDbError(errorMessage);
-      }
-    };
-    testConnection();
-  }, []);
 
   // Data Loading
   const loadData = async () => {
@@ -137,60 +107,6 @@ export default function App() {
   const handleBackToGroups = () => {
     setSelectedGroupId(null);
     setCurrentView(View.GROUPS);
-  };
-
-  const handleSeedData = async () => {
-    setIsLoading(true);
-    
-    // Arrays of names to insert
-    const otvBoysNames = ["Arvind R", "Hemant P", "Kartik P", "Karan P", "Sanjay B", "Sanjeev K", "Ranit S", "Hardik B", "Mehul Shah", "Pratik S", "Rashesh G", "Tejas B"];
-    const otvGirlsNames = ["Neeta R", "Roshini P", "Rajni S", "Prachi B", "Rakhi S", "Purna G", "Nehal B"];
-
-    // Helper to find or create player
-    const ensurePlayers = async (names: string[]) => {
-        const ids: string[] = [];
-        // Fetch latest players to ensure we don't duplicate if called multiple times
-        const currentPlayers = await api.fetchPlayers(); 
-        
-        for (const name of names) {
-            let player = currentPlayers.find(p => p.name.toLowerCase() === name.toLowerCase());
-            if (!player) {
-                player = { id: crypto.randomUUID(), name: name };
-                await api.savePlayer(player);
-                currentPlayers.push(player);
-            }
-            ids.push(player.id);
-        }
-        return ids;
-    };
-
-    try {
-        // Create/Find Players & Create Groups
-        const boysIds = await ensurePlayers(otvBoysNames);
-        const boysGroup: Group = {
-            id: crypto.randomUUID(),
-            name: "OTV BOYS",
-            playerIds: boysIds,
-            createdAt: Date.now()
-        };
-        await api.saveGroup(boysGroup);
-
-        const girlsIds = await ensurePlayers(otvGirlsNames);
-        const girlsGroup: Group = {
-            id: crypto.randomUUID(),
-            name: "OTV GIRLS",
-            playerIds: girlsIds,
-            createdAt: Date.now()
-        };
-        await api.saveGroup(girlsGroup);
-
-        // Reload all data
-        await loadData();
-    } catch (e) {
-        console.error("Failed to seed data", e);
-    } finally {
-        setIsLoading(false);
-    }
   };
 
   // --- Player Management in Group ---
@@ -385,7 +301,6 @@ export default function App() {
                 onSelectGroup={handleSelectGroup} 
                 onResumeGame={handleResumeGame}
                 onCreateGroup={handleCreateGroup} 
-                onSeedData={handleSeedData}
             />
         );
 
@@ -518,33 +433,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans selection:bg-red-900 selection:text-white">
-      {/* Database Connection Status Bar */}
-      {dbStatus !== 'connected' && (
-        <div className={`w-full py-2 px-4 text-center text-xs font-mono font-bold flex items-center justify-center gap-2 ${
-           dbStatus === 'checking' ? 'bg-yellow-900/30 text-yellow-500 border-b border-yellow-900/50' :
-           'bg-red-950 text-red-500 border-b border-red-900'
-        }`}>
-           {dbStatus === 'checking' && (
-             <>
-               <Loader2 size={12} className="animate-spin" />
-               CHECKING DB CONNECTION...
-             </>
-           )}
-           {dbStatus === 'error' && (
-             <>
-               <XCircle size={14} />
-               CONNECTION FAILED: {dbError}
-             </>
-           )}
-        </div>
-      )}
-      {dbStatus === 'connected' && (
-        <div className="w-full py-1 px-4 text-center text-[10px] font-mono font-bold bg-green-900/20 text-green-500 border-b border-green-900/30 flex items-center justify-center gap-2">
-           <CheckCircle size={10} />
-           DB CONNECTED (Schema: public)
-        </div>
-      )}
-
       {/* Navbar */}
       <nav className="border-b border-neutral-800 bg-black/50 backdrop-blur-lg sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
