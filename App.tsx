@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Session } from '@supabase/supabase-js';
 import { GameSession, Player, Transaction, TransactionType, Group } from './types';
 import { api, formatCurrency } from './services/gameService';
 import { supabase } from './services/supabaseClient';
-import { Auth } from './components/Auth';
 import { ActiveGame } from './components/ActiveGame';
 import { SettlementReport } from './components/SettlementReport';
 import { History } from './components/History';
@@ -24,10 +22,6 @@ enum View {
 }
 
 export default function App() {
-  // Auth State
-  const [session, setSession] = useState<Session | null>(null);
-  const [isSessionCheckComplete, setIsSessionCheckComplete] = useState(!supabase);
-
   // Data State
   const [groups, setGroups] = useState<Group[]>([]);
   const [games, setGames] = useState<GameSession[]>([]);
@@ -96,35 +90,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    // If no supabase configured, just load data from local storage immediately
-    if (!supabase) {
-      loadData();
-      return;
-    }
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsSessionCheckComplete(true);
-      if (session) {
-        loadData();
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-         loadData(); 
-      } else {
-         // Clear data on logout
-         setGroups([]);
-         setGames([]);
-         setPlayers([]);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    loadData();
   }, []);
 
   // Derived State
@@ -391,21 +357,7 @@ export default function App() {
 
   // --- Rendering Logic ---
 
-  // 1. Initial Session Check Loader
-  if (!isSessionCheckComplete) {
-     return (
-        <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
-           <Loader2 size={48} className="animate-spin text-red-600"/>
-        </div>
-     );
-  }
-
-  // 2. Auth Screen (If Supabase is enabled but no session)
-  if (supabase && !session) {
-    return <Auth />;
-  }
-
-  // 3. Data Loading Screen
+  // 1. Data Loading Screen
   if (isLoading) {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
@@ -417,7 +369,7 @@ export default function App() {
     );
   }
 
-  // 4. Main App
+  // 2. Main App
   // If no group selected, show group selection (unless we are deep in a game view which implies a group)
   if (!selectedGroupId && currentView !== View.GROUPS) {
      setCurrentView(View.GROUPS);
@@ -627,23 +579,6 @@ export default function App() {
                       <span className="hidden sm:inline">Switch Group</span>
                   </Button>
                 </div>
-            )}
-            
-            {/* Logout Button */}
-            {supabase && session && (
-               <div className="pl-2 ml-2 border-l border-neutral-800">
-                  <Button 
-                    variant="ghost" 
-                    onClick={async () => {
-                      await supabase.auth.signOut();
-                      setSession(null);
-                    }} 
-                    icon={<LogOut size={18}/>} 
-                    className="text-red-500 hover:text-red-400 hover:bg-red-900/10"
-                  >
-                    <span className="hidden sm:inline">Log Out</span>
-                  </Button>
-               </div>
             )}
           </div>
         </div>
