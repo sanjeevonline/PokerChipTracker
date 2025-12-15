@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { GameSession, TransactionType, Player, Transaction } from '../types';
 import { Button, Card, Modal, Input, Select } from './UI';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
-import { Plus, ArrowRightLeft, DollarSign, History, AlertCircle, Save, UserPlus } from 'lucide-react';
+import { Plus, ArrowRightLeft, DollarSign, History, AlertCircle, Save, UserPlus, LogOut } from 'lucide-react';
 
 interface ActiveGameProps {
   game: GameSession;
@@ -13,7 +13,7 @@ interface ActiveGameProps {
 }
 
 export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCreatePlayer, onUpdateGame, onEndGame }) => {
-  const [modalType, setModalType] = useState<'BUY_IN' | 'TRANSFER' | 'COUNT_CHIPS' | 'ADD_PLAYER' | null>(null);
+  const [modalType, setModalType] = useState<'BUY_IN' | 'TRANSFER' | 'CASH_OUT' | 'COUNT_CHIPS' | 'ADD_PLAYER' | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>(game.players[0]?.id || '');
   const [targetPlayerId, setTargetPlayerId] = useState<string>(game.players[1]?.id || '');
   const [amount, setAmount] = useState<string>('');
@@ -61,12 +61,26 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
     // Convert chips to value for storage
     const txAmount = (typeof game.chipValue === 'number') ? chipCount * game.chipValue : chipCount;
 
+    let type = TransactionType.TRANSFER;
+    let fromId = selectedPlayerId;
+    let toId = targetPlayerId;
+
+    if (modalType === 'BUY_IN') {
+      type = TransactionType.BUY_IN;
+      fromId = 'BANK';
+      toId = selectedPlayerId;
+    } else if (modalType === 'CASH_OUT') {
+      type = TransactionType.CASH_OUT;
+      fromId = selectedPlayerId;
+      toId = 'BANK';
+    }
+
     const newTx: Transaction = {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
-      type: modalType === 'BUY_IN' ? TransactionType.BUY_IN : TransactionType.TRANSFER,
-      fromId: modalType === 'BUY_IN' ? 'BANK' : selectedPlayerId,
-      toId: modalType === 'BUY_IN' ? selectedPlayerId : targetPlayerId,
+      type,
+      fromId,
+      toId,
       amount: txAmount
     };
 
@@ -205,14 +219,15 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Button onClick={() => setModalType('BUY_IN')} icon={<Plus size={18} />}>Buy In</Button>
+          <Button onClick={() => setModalType('CASH_OUT')} variant="secondary" icon={<LogOut size={18} />}>Cash Out</Button>
           <Button onClick={() => setModalType('TRANSFER')} variant="secondary" icon={<ArrowRightLeft size={18} />}>Transfer</Button>
           <Button onClick={() => setModalType('ADD_PLAYER')} variant="secondary" icon={<UserPlus size={18} />}>Add Player</Button>
           <Button onClick={openCountModal} variant="danger" icon={<Save size={18} />}>End Game</Button>
         </div>
       </div>
 
-      {/* Players Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Players Grid - Optimized for up to 12 players */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {game.players.map(player => {
           const stats = report.players.find(p => p.playerId === player.id);
           if (!stats) return null;
@@ -266,17 +281,30 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
               const fromName = tx.fromId === 'BANK' ? 'Bank' : game.players.find(p => p.id === tx.fromId)?.name || 'Unknown';
               const toName = tx.toId === 'BANK' ? 'Bank' : game.players.find(p => p.id === tx.toId)?.name || 'Unknown';
               
+              let icon = <ArrowRightLeft size={16} />;
+              let colorClass = 'bg-blue-500/10 text-blue-500';
+              
+              if (tx.type === TransactionType.BUY_IN) {
+                icon = <DollarSign size={16} />;
+                colorClass = 'bg-green-500/10 text-green-500';
+              } else if (tx.type === TransactionType.CASH_OUT) {
+                icon = <LogOut size={16} />;
+                colorClass = 'bg-yellow-500/10 text-yellow-500';
+              }
+
               return (
                 <div key={tx.id} className="flex items-center justify-between p-3 bg-black/40 rounded-lg border border-neutral-800/50">
                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${tx.type === 'BUY_IN' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                        {tx.type === 'BUY_IN' ? <DollarSign size={16} /> : <ArrowRightLeft size={16} />}
+                      <div className={`p-2 rounded-full ${colorClass}`}>
+                        {icon}
                       </div>
                       <div>
                         <div className="text-sm font-medium text-neutral-200">
-                          {tx.type === 'BUY_IN' 
+                          {tx.type === TransactionType.BUY_IN 
                             ? `${toName} bought in` 
-                            : `${fromName} ➔ ${toName}`}
+                            : tx.type === TransactionType.CASH_OUT
+                              ? `${fromName} cashed out`
+                              : `${fromName} ➔ ${toName}`}
                         </div>
                         <div className="text-xs text-neutral-500">
                           {new Date(tx.timestamp).toLocaleTimeString()}
@@ -323,6 +351,42 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
             )}
           </div>
           <Button className="w-full" onClick={handleTransaction}>Confirm Buy In</Button>
+        </div>
+      </Modal>
+
+      {/* Cash Out Modal */}
+      <Modal 
+        isOpen={modalType === 'CASH_OUT'} 
+        onClose={closeModal}
+        title="Cash Out (Early Exit)"
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-yellow-900/20 border border-yellow-900/50 rounded-lg text-sm text-yellow-200">
+             Use this when a player leaves the game early. They return their chips to the bank.
+          </div>
+          <Select 
+            label="Player"
+            options={game.players.map(p => ({ value: p.id, label: p.name }))}
+            value={selectedPlayerId}
+            onChange={(e) => setSelectedPlayerId(e.target.value)}
+          />
+          <div>
+            <Input 
+              label="Amount (Chips)"
+              type="number"
+              step="1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="e.g. 1200"
+              autoFocus
+            />
+            {amount && game.chipValue && (
+              <div className="text-right text-xs text-neutral-400 mt-1">
+                Value: <span className="text-green-500 font-mono">{formatCurrency(inputValue)}</span>
+              </div>
+            )}
+          </div>
+          <Button className="w-full" variant="secondary" onClick={handleTransaction}>Confirm Cash Out</Button>
         </div>
       </Modal>
 

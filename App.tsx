@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { GameSession, Player, Transaction, TransactionType, Group } from './types';
 import { api, formatCurrency } from './services/gameService';
 import { supabase } from './services/supabaseClient';
+import { Auth } from './components/Auth';
 import { ActiveGame } from './components/ActiveGame';
 import { SettlementReport } from './components/SettlementReport';
 import { History } from './components/History';
@@ -9,7 +11,7 @@ import { PlayersList } from './components/PlayersList';
 import { PlayerProfile } from './components/PlayerProfile';
 import { GroupSelection } from './components/GroupSelection';
 import { Button, Modal, Input, Card } from './components/UI';
-import { Plus, LayoutDashboard, Settings, Users, Database, ChevronLeft, PlayCircle } from 'lucide-react'; 
+import { Plus, LayoutDashboard, Settings, Users, Database, ChevronLeft, PlayCircle, LogOut, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'; 
 
 enum View {
   GROUPS,
@@ -22,10 +24,18 @@ enum View {
 }
 
 export default function App() {
+  // Auth State
+  const [session, setSession] = useState<Session | null>(null);
+  const [isSessionCheckComplete, setIsSessionCheckComplete] = useState(!supabase);
+
   // Data State
   const [groups, setGroups] = useState<Group[]>([]);
   const [games, setGames] = useState<GameSession[]>([]);
   const [players, setPlayers] = useState<Player[]>([]); // Global players
+  
+  // Connection Test State
+  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'error'>('checking');
+  const [dbError, setDbError] = useState<string>('');
   
   // View State
   const [isLoading, setIsLoading] = useState(true);
@@ -44,8 +54,35 @@ export default function App() {
   const [newGameChipValue, setNewGameChipValue] = useState<string>('0.25');
   const [newPlayerName, setNewPlayerName] = useState('');
 
+  // Test Database Connection
+  useEffect(() => {
+    const testConnection = async () => {
+      if (!supabase) {
+         setDbStatus('error');
+         setDbError('Supabase client not initialized');
+         return;
+      }
+      try {
+        // Simple lightweight query to check connection and schema access
+        const { error } = await supabase.from('groups').select('id').limit(1);
+        if (error) {
+           throw error;
+        }
+        setDbStatus('connected');
+      } catch (err: any) {
+        console.error("DB Connection Test Failed:", err);
+        setDbStatus('error');
+        // Handle standard Error objects vs Supabase error objects
+        const errorMessage = err instanceof Error ? err.message : (err.message || JSON.stringify(err));
+        setDbError(errorMessage);
+      }
+    };
+    testConnection();
+  }, []);
+
   // Data Loading
   const loadData = async () => {
+    setIsLoading(true);
     const [fetchedGroups, fetchedGames, fetchedPlayers] = await Promise.all([
       api.fetchGroups(),
       api.fetchGames(),
@@ -58,7 +95,35 @@ export default function App() {
   };
 
   useEffect(() => {
-    loadData();
+    // If no supabase configured, just load data from local storage immediately
+    if (!supabase) {
+      loadData();
+      return;
+    }
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsSessionCheckComplete(true);
+      if (session) {
+        loadData();
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+         loadData(); 
+      } else {
+         // Clear data on logout
+         setGroups([]);
+         setGames([]);
+         setPlayers([]);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Derived State
@@ -305,6 +370,23 @@ export default function App() {
     setNewGameBuyIns(prev => ({ ...prev, [id]: value }));
   };
 
+  // --- Rendering Logic ---
+
+  // 1. Initial Session Check Loader
+  if (!isSessionCheckComplete) {
+     return (
+        <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
+           <Loader2 size={48} className="animate-spin text-red-600"/>
+        </div>
+     );
+  }
+
+  // 2. Auth Screen (If Supabase is enabled but no session)
+  if (supabase && !session) {
+    return <Auth />;
+  }
+
+  // 3. Data Loading Screen
   if (isLoading) {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center text-neutral-400">
@@ -316,6 +398,7 @@ export default function App() {
     );
   }
 
+  // 4. Main App
   // If no group selected, show group selection (unless we are deep in a game view which implies a group)
   if (!selectedGroupId && currentView !== View.GROUPS) {
      setCurrentView(View.GROUPS);
@@ -464,6 +547,33 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans selection:bg-red-900 selection:text-white">
+      {/* Database Connection Status Bar */}
+      {dbStatus !== 'connected' && (
+        <div className={`w-full py-2 px-4 text-center text-xs font-mono font-bold flex items-center justify-center gap-2 ${
+           dbStatus === 'checking' ? 'bg-yellow-900/30 text-yellow-500 border-b border-yellow-900/50' :
+           'bg-red-950 text-red-500 border-b border-red-900'
+        }`}>
+           {dbStatus === 'checking' && (
+             <>
+               <Loader2 size={12} className="animate-spin" />
+               CHECKING DB CONNECTION...
+             </>
+           )}
+           {dbStatus === 'error' && (
+             <>
+               <XCircle size={14} />
+               CONNECTION FAILED: {dbError}
+             </>
+           )}
+        </div>
+      )}
+      {dbStatus === 'connected' && (
+        <div className="w-full py-1 px-4 text-center text-[10px] font-mono font-bold bg-green-900/20 text-green-500 border-b border-green-900/30 flex items-center justify-center gap-2">
+           <CheckCircle size={10} />
+           DB CONNECTED (Schema: public)
+        </div>
+      )}
+
       {/* Navbar */}
       <nav className="border-b border-neutral-800 bg-black/50 backdrop-blur-lg sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -482,22 +592,41 @@ export default function App() {
             </span>
           </div>
           
-          {selectedGroupId && (
-              <div className="flex items-center gap-1">
-                 <Button variant="ghost" onClick={() => setCurrentView(View.DASHBOARD)} icon={<LayoutDashboard size={18}/>}>
-                   <span className="hidden sm:inline">Dashboard</span>
-                 </Button>
-                 <Button variant="ghost" onClick={() => setCurrentView(View.PLAYERS)} icon={<Users size={18}/>}>
-                   <span className="hidden sm:inline">Players</span>
-                 </Button>
-                 <Button variant="ghost" onClick={() => setCurrentView(View.HISTORY)} icon={<Settings size={18}/>}>
-                   <span className="hidden sm:inline">History</span>
-                 </Button>
-                 <Button variant="ghost" onClick={handleBackToGroups} icon={<ChevronLeft size={18}/>} className="text-neutral-400">
-                    <span className="hidden sm:inline">Switch Group</span>
-                 </Button>
-              </div>
-          )}
+          <div className="flex items-center gap-2">
+            {selectedGroupId && (
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" onClick={() => setCurrentView(View.DASHBOARD)} icon={<LayoutDashboard size={18}/>}>
+                    <span className="hidden sm:inline">Dashboard</span>
+                  </Button>
+                  <Button variant="ghost" onClick={() => setCurrentView(View.PLAYERS)} icon={<Users size={18}/>}>
+                    <span className="hidden sm:inline">Players</span>
+                  </Button>
+                  <Button variant="ghost" onClick={() => setCurrentView(View.HISTORY)} icon={<Settings size={18}/>}>
+                    <span className="hidden sm:inline">History</span>
+                  </Button>
+                  <Button variant="ghost" onClick={handleBackToGroups} icon={<ChevronLeft size={18}/>} className="text-neutral-400">
+                      <span className="hidden sm:inline">Switch Group</span>
+                  </Button>
+                </div>
+            )}
+            
+            {/* Logout Button */}
+            {supabase && session && (
+               <div className="pl-2 ml-2 border-l border-neutral-800">
+                  <Button 
+                    variant="ghost" 
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      setSession(null);
+                    }} 
+                    icon={<LogOut size={18}/>} 
+                    className="text-red-500 hover:text-red-400 hover:bg-red-900/10"
+                  >
+                    <span className="hidden sm:inline">Log Out</span>
+                  </Button>
+               </div>
+            )}
+          </div>
         </div>
       </nav>
 

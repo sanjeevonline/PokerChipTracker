@@ -22,7 +22,7 @@ export const api = {
       if (!error && data) {
         return data as Player[];
       }
-      console.error("Supabase error fetching players:", error);
+      if (error) console.error("Supabase error fetching players:", error.message || JSON.stringify(error));
     }
 
     // 2. Fallback to LocalStorage
@@ -44,7 +44,7 @@ export const api = {
   savePlayer: async (player: Player): Promise<void> => {
     if (supabase) {
       const { error } = await supabase.from('players').insert(player);
-      if (error) console.error("Supabase error saving player:", error);
+      if (error) console.error("Supabase error saving player:", error.message || JSON.stringify(error));
       return;
     }
 
@@ -59,19 +59,22 @@ export const api = {
    */
   fetchGroups: async (): Promise<Group[]> => {
     if (supabase) {
+      // Removed .order('created_at') to avoid errors if column doesn't exist yet
       const { data, error } = await supabase
         .from('groups')
-        .select('*')
-        .order('created_at');
+        .select('*');
 
       if (!error && data) {
+        console.log("Groups data received:", data);
         return data.map((d: any) => ({
            id: d.id,
            name: d.name,
-           playerIds: d.player_ids || [],
-           createdAt: new Date(d.created_at).getTime()
-        })) as Group[];
+           // Handle potential casing differences in DB columns
+           playerIds: d.player_ids || d.playerIds || [],
+           createdAt: d.created_at ? new Date(d.created_at).getTime() : Date.now()
+        })).sort((a: Group, b: Group) => a.createdAt - b.createdAt);
       }
+      if (error) console.error("Supabase error fetching groups:", error.message || JSON.stringify(error));
     }
 
     // LocalStorage Fallback
@@ -94,7 +97,7 @@ export const api = {
         player_ids: group.playerIds,
         created_at: new Date(group.createdAt).toISOString()
       });
-      if(error) console.error("Supabase error saving group:", error);
+      if(error) console.error("Supabase error saving group:", error.message || JSON.stringify(error));
       return;
     }
 
@@ -138,7 +141,7 @@ export const api = {
       if (!error && data) {
         return data.map((row: any) => row.data) as GameSession[];
       }
-      console.error("Supabase error fetching games:", error);
+      if (error) console.error("Supabase error fetching games:", error.message || JSON.stringify(error));
     }
 
     // LocalStorage Fallback
@@ -163,7 +166,7 @@ export const api = {
           created_at: new Date(game.startTime).toISOString() // Ensure ordering
         });
         
-      if (error) console.error("Supabase error saving game:", error);
+      if (error) console.error("Supabase error saving game:", error.message || JSON.stringify(error));
       return;
     }
 
