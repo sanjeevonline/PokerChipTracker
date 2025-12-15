@@ -1,6 +1,14 @@
+
 export interface Player {
   id: string;
   name: string;
+}
+
+export interface Group {
+  id: string;
+  name: string;
+  playerIds: string[]; // List of IDs in this group
+  createdAt: number;
 }
 
 export enum TransactionType {
@@ -27,6 +35,7 @@ export interface PlayerSessionState {
 
 export interface GameSession {
   id: string;
+  groupId?: string; // Optional for legacy support, but new games should have it
   startTime: number;
   endTime?: number;
   players: Player[]; // Players participating in this session

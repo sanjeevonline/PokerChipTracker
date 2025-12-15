@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { GameSession, Player, Transaction, TransactionType } from './types';
+import { GameSession, Player, Transaction, TransactionType, Group } from './types';
 import { api, formatCurrency } from './services/gameService';
+import { supabase } from './services/supabaseClient';
 import { ActiveGame } from './components/ActiveGame';
 import { SettlementReport } from './components/SettlementReport';
 import { History } from './components/History';
 import { PlayersList } from './components/PlayersList';
 import { PlayerProfile } from './components/PlayerProfile';
+import { GroupSelection } from './components/GroupSelection';
 import { Button, Modal, Input, Card } from './components/UI';
-import { Plus, LayoutDashboard, Settings, Users, Database } from 'lucide-react'; 
+import { Plus, LayoutDashboard, Settings, Users, Database, ChevronLeft, PlayCircle } from 'lucide-react'; 
 
 enum View {
+  GROUPS,
   DASHBOARD,
   ACTIVE_GAME,
   SETTLEMENT,
@@ -19,10 +22,17 @@ enum View {
 }
 
 export default function App() {
+  // Data State
+  const [groups, setGroups] = useState<Group[]>([]);
   const [games, setGames] = useState<GameSession[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]); // Global players
+  
+  // View State
   const [isLoading, setIsLoading] = useState(true);
-  const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
+  const [currentView, setCurrentView] = useState<View>(View.GROUPS);
+  
+  // Selection State
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
   const [viewingGameId, setViewingGameId] = useState<string | null>(null);
   const [viewingPlayerId, setViewingPlayerId] = useState<string | null>(null);
@@ -34,37 +44,184 @@ export default function App() {
   const [newGameChipValue, setNewGameChipValue] = useState<string>('0.25');
   const [newPlayerName, setNewPlayerName] = useState('');
 
-  // Initial Load
+  // Data Loading
+  const loadData = async () => {
+    const [fetchedGroups, fetchedGames, fetchedPlayers] = await Promise.all([
+      api.fetchGroups(),
+      api.fetchGames(),
+      api.fetchPlayers()
+    ]);
+    setGroups(fetchedGroups);
+    setGames(fetchedGames);
+    setPlayers(fetchedPlayers);
+    setIsLoading(false);
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      const [fetchedGames, fetchedPlayers] = await Promise.all([
-        api.fetchGames(),
-        api.fetchPlayers()
-      ]);
-      setGames(fetchedGames);
-      setPlayers(fetchedPlayers);
-      setIsLoading(false);
-    };
     loadData();
   }, []);
 
-  // --- Actions ---
+  // Derived State
+  const currentGroup = groups.find(g => g.id === selectedGroupId);
+  const groupGames = games.filter(g => {
+    if (selectedGroupId) return g.groupId === selectedGroupId;
+    return false;
+  });
+  
+  const groupPlayers = currentGroup 
+    ? players.filter(p => currentGroup.playerIds.includes(p.id))
+    : [];
+
+  const activeGame = games.find(g => g.id === activeGameId);
+  const viewingGame = games.find(g => g.id === viewingGameId);
+  const viewingPlayer = players.find(p => p.id === viewingPlayerId);
+
+  // --- Group Actions ---
+
+  const handleCreateGroup = async (name: string) => {
+    const newGroup: Group = {
+        id: crypto.randomUUID(),
+        name: name.trim(),
+        playerIds: [],
+        createdAt: Date.now()
+    };
+    await api.saveGroup(newGroup);
+    setGroups([...groups, newGroup]);
+    setSelectedGroupId(newGroup.id);
+    setCurrentView(View.DASHBOARD);
+  };
+
+  const handleSelectGroup = (groupId: string) => {
+    setSelectedGroupId(groupId);
+    setCurrentView(View.DASHBOARD);
+  };
+
+  const handleResumeGame = (groupId: string, gameId: string) => {
+    setSelectedGroupId(groupId);
+    setActiveGameId(gameId);
+    setCurrentView(View.ACTIVE_GAME);
+  };
+
+  const handleBackToGroups = () => {
+    setSelectedGroupId(null);
+    setCurrentView(View.GROUPS);
+  };
+
+  const handleSeedData = async () => {
+    setIsLoading(true);
+    
+    // Arrays of names to insert
+    const otvBoysNames = ["Arvind R", "Hemant P", "Kartik P", "Karan P", "Sanjay B", "Sanjeev K", "Ranit S", "Hardik B", "Mehul Shah", "Pratik S", "Rashesh G", "Tejas B"];
+    const otvGirlsNames = ["Neeta R", "Roshini P", "Rajni S", "Prachi B", "Rakhi S", "Purna G", "Nehal B"];
+
+    // Helper to find or create player
+    const ensurePlayers = async (names: string[]) => {
+        const ids: string[] = [];
+        // Fetch latest players to ensure we don't duplicate if called multiple times
+        const currentPlayers = await api.fetchPlayers(); 
+        
+        for (const name of names) {
+            let player = currentPlayers.find(p => p.name.toLowerCase() === name.toLowerCase());
+            if (!player) {
+                player = { id: crypto.randomUUID(), name: name };
+                await api.savePlayer(player);
+                currentPlayers.push(player);
+            }
+            ids.push(player.id);
+        }
+        return ids;
+    };
+
+    try {
+        // Create/Find Players & Create Groups
+        const boysIds = await ensurePlayers(otvBoysNames);
+        const boysGroup: Group = {
+            id: crypto.randomUUID(),
+            name: "OTV BOYS",
+            playerIds: boysIds,
+            createdAt: Date.now()
+        };
+        await api.saveGroup(boysGroup);
+
+        const girlsIds = await ensurePlayers(otvGirlsNames);
+        const girlsGroup: Group = {
+            id: crypto.randomUUID(),
+            name: "OTV GIRLS",
+            playerIds: girlsIds,
+            createdAt: Date.now()
+        };
+        await api.saveGroup(girlsGroup);
+
+        // Reload all data
+        await loadData();
+    } catch (e) {
+        console.error("Failed to seed data", e);
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  // --- Player Management in Group ---
+
+  const handleAddExistingPlayerToGroup = async (playerId: string) => {
+    if (!selectedGroupId) return;
+    await api.addPlayerToGroup(selectedGroupId, playerId);
+    
+    // Refresh groups state locally
+    setGroups(prev => prev.map(g => {
+        if (g.id === selectedGroupId && !g.playerIds.includes(playerId)) {
+            return { ...g, playerIds: [...g.playerIds, playerId] };
+        }
+        return g;
+    }));
+  };
+
+  const createPlayer = (name: string): Player => {
+    return { id: crypto.randomUUID(), name: name.trim() };
+  };
+
+  const handleCreatePlayerInModal = async () => {
+    if (!newPlayerName.trim()) return;
+    const newPlayer = createPlayer(newPlayerName);
+    
+    // Save Global
+    await api.savePlayer(newPlayer);
+    setPlayers(prev => [...prev, newPlayer].sort((a,b) => a.name.localeCompare(b.name)));
+    
+    // Add to Group if in setup modal
+    if (selectedGroupId) {
+        await api.addPlayerToGroup(selectedGroupId, newPlayer.id);
+        setGroups(prev => prev.map(g => 
+            g.id === selectedGroupId 
+            ? { ...g, playerIds: [...g.playerIds, newPlayer.id] } 
+            : g
+        ));
+    }
+    
+    setNewPlayerName('');
+    
+    // Auto select in new game modal
+    if (isNewGameModalOpen) {
+       setNewGamePlayers(prev => [...prev, newPlayer.id]);
+       setNewGameBuyIns(prev => ({ ...prev, [newPlayer.id]: '100' }));
+    }
+
+    return newPlayer;
+  };
+
+  // --- Game Actions ---
 
   const handleStartNewGame = async () => {
-    if (newGamePlayers.length < 2) return;
+    if (newGamePlayers.length < 2 || !selectedGroupId) return;
 
     const selectedPlayers = players.filter(p => newGamePlayers.includes(p.id));
     const startTime = Date.now();
     const chipValue = parseFloat(newGameChipValue) || 0.25;
     
-    // Create Initial Transactions
     const initialTransactions: Transaction[] = [];
     selectedPlayers.forEach(p => {
        const chips = parseFloat(newGameBuyIns[p.id] || '100');
-       // Calculate actual currency amount based on chip count * chip value
        const amount = chips * chipValue;
-       
        if (amount > 0) {
          initialTransactions.push({
            id: crypto.randomUUID(),
@@ -79,6 +236,7 @@ export default function App() {
 
     const newGame: GameSession = {
       id: crypto.randomUUID(),
+      groupId: selectedGroupId,
       startTime: startTime,
       players: selectedPlayers,
       transactions: initialTransactions,
@@ -87,7 +245,6 @@ export default function App() {
       chipValue: chipValue
     };
 
-    // Optimistic Update
     setGames([newGame, ...games]);
     setActiveGameId(newGame.id);
     setCurrentView(View.ACTIVE_GAME);
@@ -96,74 +253,48 @@ export default function App() {
     setNewGameBuyIns({});
     setNewGameChipValue('0.25');
 
-    // Persist
     await api.saveGame(newGame);
   };
 
   const handleUpdateGame = async (updatedGame: GameSession) => {
-    // Optimistic Update
     setGames(prev => prev.map(g => g.id === updatedGame.id ? updatedGame : g));
-    
-    // Persist
     await api.saveGame(updatedGame);
   };
 
   const handleEditGame = (gameId: string) => {
     const gameToEdit = games.find(g => g.id === gameId);
     if (!gameToEdit) return;
-
-    // Reactivate the game locally to allow editing in ActiveGame component
     const updatedGame = { ...gameToEdit, isActive: true };
     handleUpdateGame(updatedGame);
-    
     setActiveGameId(gameId);
     setCurrentView(View.ACTIVE_GAME);
   };
 
-  const createPlayer = (name: string): Player => {
-    const newPlayer = { id: crypto.randomUUID(), name: name.trim() };
-    return newPlayer; // return object for immediate use, persistence happens in handler
-  };
-
-  const handleCreatePlayerInModal = async () => {
-    if (!newPlayerName.trim()) return;
-    
-    const newPlayer = createPlayer(newPlayerName);
-    
-    // Optimistic Update
-    const updatedPlayers = [...players, newPlayer].sort((a, b) => a.name.localeCompare(b.name));
-    setPlayers(updatedPlayers);
-    
-    setNewPlayerName('');
-    
-    // Auto select new player in modal
-    if (isNewGameModalOpen) {
-       setNewGamePlayers(prev => [...prev, newPlayer.id]);
-       // Default to 100 chips
-       setNewGameBuyIns(prev => ({ ...prev, [newPlayer.id]: '100' }));
-    }
-
-    // Persist
-    await api.savePlayer(newPlayer);
-    
-    return newPlayer;
-  };
-
   // Wrapper for ActiveGame to create players on the fly
   const handleCreatePlayerFromGame = async (name: string) => {
+    // 1. Create Player
     const newPlayer = createPlayer(name);
-    const updatedPlayers = [...players, newPlayer].sort((a, b) => a.name.localeCompare(b.name));
-    setPlayers(updatedPlayers);
     await api.savePlayer(newPlayer);
+    setPlayers(prev => [...prev, newPlayer].sort((a,b) => a.name.localeCompare(b.name)));
+    
+    // 2. Add to Group
+    if (selectedGroupId) {
+        await api.addPlayerToGroup(selectedGroupId, newPlayer.id);
+        setGroups(prev => prev.map(g => 
+            g.id === selectedGroupId 
+            ? { ...g, playerIds: [...g.playerIds, newPlayer.id] } 
+            : g
+        ));
+    }
     return newPlayer;
   }
 
+  // --- View Helpers ---
+
   const togglePlayerSelection = (id: string) => {
     setNewGamePlayers(prev => {
-      if (prev.includes(id)) {
-        return prev.filter(p => p !== id);
-      } else {
-        // Set default buy-in to 100 Chips
+      if (prev.includes(id)) return prev.filter(p => p !== id);
+      else {
         setNewGameBuyIns(prevBI => ({ ...prevBI, [id]: '100' }));
         return [...prev, id];
       }
@@ -173,22 +304,6 @@ export default function App() {
   const handleBuyInChange = (id: string, value: string) => {
     setNewGameBuyIns(prev => ({ ...prev, [id]: value }));
   };
-
-  // --- View Helpers ---
-
-  const activeGame = games.find(g => g.id === activeGameId);
-  const viewingGame = games.find(g => g.id === viewingGameId);
-  const viewingPlayer = players.find(p => p.id === viewingPlayerId);
-
-  // Resume active game if exists on load
-  useEffect(() => {
-    if (!isLoading) {
-      const active = games.find(g => g.isActive);
-      if (active && currentView === View.DASHBOARD && !activeGameId) {
-        // Optional: Auto-resume logic could go here
-      }
-    }
-  }, [games, isLoading, currentView, activeGameId]);
 
   if (isLoading) {
     return (
@@ -201,14 +316,31 @@ export default function App() {
     );
   }
 
+  // If no group selected, show group selection (unless we are deep in a game view which implies a group)
+  if (!selectedGroupId && currentView !== View.GROUPS) {
+     setCurrentView(View.GROUPS);
+  }
+
   const renderContent = () => {
     switch (currentView) {
+      case View.GROUPS:
+        return (
+            <GroupSelection 
+                groups={groups} 
+                activeGames={games.filter(g => g.isActive)}
+                onSelectGroup={handleSelectGroup} 
+                onResumeGame={handleResumeGame}
+                onCreateGroup={handleCreateGroup} 
+                onSeedData={handleSeedData}
+            />
+        );
+
       case View.ACTIVE_GAME:
         if (!activeGame) return <div>Error: Game not found</div>;
         return (
           <ActiveGame 
             game={activeGame} 
-            allPlayers={players}
+            allPlayers={groupPlayers} 
             onCreatePlayer={handleCreatePlayerFromGame}
             onUpdateGame={handleUpdateGame} 
             onEndGame={() => {
@@ -230,7 +362,7 @@ export default function App() {
       case View.HISTORY:
         return (
           <History 
-            games={games.filter(g => !g.isActive)} 
+            games={groupGames.filter(g => !g.isActive)} 
             onSelectGame={(g) => {
               setViewingGameId(g.id);
               setCurrentView(View.SETTLEMENT);
@@ -240,11 +372,19 @@ export default function App() {
       case View.PLAYERS:
         return (
           <PlayersList 
-            players={players} 
-            games={games}
+            players={groupPlayers}
+            allGlobalPlayers={players}
+            games={games} 
             onSelectPlayer={(id) => {
               setViewingPlayerId(id);
               setCurrentView(View.PLAYER_PROFILE);
+            }}
+            onAddPlayerToGroup={handleAddExistingPlayerToGroup}
+            onCreatePlayerInGroup={async (name) => {
+                const newPlayer = createPlayer(name);
+                await api.savePlayer(newPlayer);
+                setPlayers(prev => [...prev, newPlayer]);
+                await handleAddExistingPlayerToGroup(newPlayer.id);
             }}
           />
         );
@@ -253,22 +393,24 @@ export default function App() {
         return (
           <PlayerProfile 
             player={viewingPlayer} 
-            games={games}
+            games={games} 
             onBack={() => setCurrentView(View.PLAYERS)}
           />
         );
       case View.DASHBOARD:
       default:
-        const active = games.find(g => g.isActive);
+        const active = groupGames.find(g => g.isActive);
         return (
           <div className="space-y-8 animate-in fade-in duration-300">
             {/* Hero Section */}
             <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-950 to-neutral-900 p-8 sm:p-12 border border-red-900/30">
               <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-red-600 rounded-full blur-3xl opacity-20"></div>
               <div className="relative z-10">
-                <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">ChipTracker</h1>
+                <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">
+                    {currentGroup?.name || 'Dashboard'}
+                </h1>
                 <p className="text-red-200/80 text-lg max-w-xl mb-8">
-                  Professional bankroll and game management for your home poker nights.
+                  {groupPlayers.length} Members • {groupGames.length} Games Played
                 </p>
                 
                 {active ? (
@@ -308,7 +450,7 @@ export default function App() {
                  <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.HISTORY)}>View All</Button>
               </div>
               <History 
-                games={games.filter(g => !g.isActive).slice(0, 3)} 
+                games={groupGames.filter(g => !g.isActive).slice(0, 3)} 
                 onSelectGame={(g) => {
                    setViewingGameId(g.id);
                    setCurrentView(View.SETTLEMENT);
@@ -327,26 +469,35 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div 
             className="flex items-center gap-2 font-bold text-xl cursor-pointer group"
-            onClick={() => setCurrentView(View.DASHBOARD)}
+            onClick={() => handleBackToGroups()}
           >
             {/* Spade Card Icon - Red Base, Black Spade */}
             <div className="w-8 h-10 bg-red-600 rounded border border-red-800 flex items-center justify-center text-black shadow-lg shadow-red-900/20 group-hover:scale-105 transition-transform">
               <span className="font-serif text-3xl leading-none pb-1">♠</span>
             </div>
-            <span className="group-hover:text-white transition-colors">ChipTracker</span>
+            <span className="group-hover:text-white transition-colors">
+                ChipTracker
+                {currentGroup && <span className="text-neutral-500 font-normal mx-2">/</span>}
+                {currentGroup && <span className="text-sm font-normal text-neutral-300">{currentGroup.name}</span>}
+            </span>
           </div>
           
-          <div className="flex items-center gap-1">
-             <Button variant="ghost" onClick={() => setCurrentView(View.DASHBOARD)} icon={<LayoutDashboard size={18}/>}>
-               <span className="hidden sm:inline">Dashboard</span>
-             </Button>
-             <Button variant="ghost" onClick={() => setCurrentView(View.PLAYERS)} icon={<Users size={18}/>}>
-               <span className="hidden sm:inline">Players</span>
-             </Button>
-             <Button variant="ghost" onClick={() => setCurrentView(View.HISTORY)} icon={<Settings size={18}/>}>
-               <span className="hidden sm:inline">History</span>
-             </Button>
-          </div>
+          {selectedGroupId && (
+              <div className="flex items-center gap-1">
+                 <Button variant="ghost" onClick={() => setCurrentView(View.DASHBOARD)} icon={<LayoutDashboard size={18}/>}>
+                   <span className="hidden sm:inline">Dashboard</span>
+                 </Button>
+                 <Button variant="ghost" onClick={() => setCurrentView(View.PLAYERS)} icon={<Users size={18}/>}>
+                   <span className="hidden sm:inline">Players</span>
+                 </Button>
+                 <Button variant="ghost" onClick={() => setCurrentView(View.HISTORY)} icon={<Settings size={18}/>}>
+                   <span className="hidden sm:inline">History</span>
+                 </Button>
+                 <Button variant="ghost" onClick={handleBackToGroups} icon={<ChevronLeft size={18}/>} className="text-neutral-400">
+                    <span className="hidden sm:inline">Switch Group</span>
+                 </Button>
+              </div>
+          )}
         </div>
       </nav>
 
@@ -359,7 +510,7 @@ export default function App() {
       <Modal 
         isOpen={isNewGameModalOpen} 
         onClose={() => setIsNewGameModalOpen(false)} 
-        title="Setup New Game"
+        title={`New Game: ${currentGroup?.name}`}
       >
         <div className="space-y-6">
           <Input 
@@ -391,12 +542,12 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-800">
-                  {players.length === 0 && (
+                  {groupPlayers.length === 0 && (
                     <tr>
-                       <td colSpan={4} className="p-4 text-center text-neutral-500">No players found.</td>
+                       <td colSpan={4} className="p-4 text-center text-neutral-500">No players in this group yet. Go to Players tab to add.</td>
                     </tr>
                   )}
-                  {players.map(p => {
+                  {groupPlayers.map(p => {
                     const isSelected = newGamePlayers.includes(p.id);
                     const chipCountStr = newGameBuyIns[p.id] || '100';
                     const chipValNum = parseFloat(newGameChipValue) || 0;
@@ -443,7 +594,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Quick Add Player */}
+          {/* Quick Add Player (Directly into group) */}
           <div className="flex gap-2 items-end pt-2 border-t border-neutral-800">
              <Input 
                 placeholder="New Player Name"

@@ -32,8 +32,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
   const availablePlayers = allPlayers.filter(p => !game.players.some(gp => gp.id === p.id));
 
   // Calculate live discrepancy for the modal logic
-  const totalRawCount: number = Object.values(counts).reduce((sum, val) => {
-    const num = parseFloat(val as string);
+  const totalRawCount: number = Object.values(counts).reduce((sum: number, val: string) => {
+    const num = parseFloat(val);
     return sum + (isNaN(num) ? 0 : num);
   }, 0);
 

@@ -1,12 +1,9 @@
-import { GameSession, Transaction, TransactionType, Player, GameSettlementReport, PlayerSettlement, PlayerStats } from '../types';
+import { GameSession, Transaction, TransactionType, Player, GameSettlementReport, PlayerSettlement, PlayerStats, Group } from '../types';
 import { supabase } from './supabaseClient';
 
 const STORAGE_KEY_GAMES = 'chiptracker_games';
 const STORAGE_KEY_PLAYERS = 'chiptracker_players';
-
-const DEFAULT_PLAYERS = [
-  "Arvind", "Hardik", "Hemant", "Karan", "Kartik", "Mehul", "Pratik", "Ranit", "Rashesh", "Sanjeev", "Tejas"
-];
+const STORAGE_KEY_GROUPS = 'chiptracker_groups';
 
 // --- Data Access Layer ---
 
@@ -34,13 +31,7 @@ export const api = {
       if (raw) {
         return JSON.parse(raw).sort((a: Player, b: Player) => a.name.localeCompare(b.name));
       }
-      // Defaults
-      const defaults = DEFAULT_PLAYERS.map(name => ({
-        id: crypto.randomUUID(),
-        name
-      })).sort((a, b) => a.name.localeCompare(b.name));
-      localStorage.setItem(STORAGE_KEY_PLAYERS, JSON.stringify(defaults));
-      return defaults;
+      return [];
     } catch (e) {
       console.error("Failed to parse players from local storage", e);
       return [];
@@ -61,6 +52,76 @@ export const api = {
     const players = await api.fetchPlayers();
     const updated = [...players, player].sort((a, b) => a.name.localeCompare(b.name));
     localStorage.setItem(STORAGE_KEY_PLAYERS, JSON.stringify(updated));
+  },
+
+  /**
+   * Fetch Groups
+   */
+  fetchGroups: async (): Promise<Group[]> => {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('groups')
+        .select('*')
+        .order('created_at');
+
+      if (!error && data) {
+        return data.map((d: any) => ({
+           id: d.id,
+           name: d.name,
+           playerIds: d.player_ids || [],
+           createdAt: new Date(d.created_at).getTime()
+        })) as Group[];
+      }
+    }
+
+    // LocalStorage Fallback
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_GROUPS);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  /**
+   * Save Group
+   */
+  saveGroup: async (group: Group): Promise<void> => {
+    if (supabase) {
+      const { error } = await supabase.from('groups').upsert({
+        id: group.id,
+        name: group.name,
+        player_ids: group.playerIds,
+        created_at: new Date(group.createdAt).toISOString()
+      });
+      if(error) console.error("Supabase error saving group:", error);
+      return;
+    }
+
+    // LocalStorage
+    const groups = await api.fetchGroups();
+    const index = groups.findIndex(g => g.id === group.id);
+    let updated;
+    if (index >= 0) {
+      updated = groups.map(g => g.id === group.id ? group : g);
+    } else {
+      updated = [...groups, group];
+    }
+    localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updated));
+  },
+
+  /**
+   * Add Player to Group
+   */
+  addPlayerToGroup: async (groupId: string, playerId: string): Promise<void> => {
+    const groups = await api.fetchGroups();
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return;
+
+    if (!group.playerIds.includes(playerId)) {
+      const updatedGroup = { ...group, playerIds: [...group.playerIds, playerId] };
+      await api.saveGroup(updatedGroup);
+    }
   },
 
   /**
