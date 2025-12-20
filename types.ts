@@ -9,6 +9,8 @@ export interface Group {
   name: string;
   playerIds: string[]; // List of IDs in this group
   createdAt: number;
+  ownerId?: string; // ID of the creator
+  sharedWithEmails?: string[]; // Emails of collaborators
 }
 
 export enum TransactionType {

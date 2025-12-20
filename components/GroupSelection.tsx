@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { Group, GameSession } from '../types';
 import { Button, Input, Modal, Card } from './UI';
-import { Plus, Users, ChevronRight, PlayCircle, FolderPlus } from 'lucide-react';
+import { Plus, Users, ChevronRight, PlayCircle, FolderPlus, Share2, ShieldCheck, Lock } from 'lucide-react';
 
 interface GroupSelectionProps {
   groups: Group[];
@@ -9,6 +10,8 @@ interface GroupSelectionProps {
   onSelectGroup: (groupId: string) => void;
   onResumeGame: (groupId: string, gameId: string) => void;
   onCreateGroup: (name: string) => void;
+  onShareGroup: (group: Group) => void;
+  currentUserId?: string;
 }
 
 export const GroupSelection: React.FC<GroupSelectionProps> = ({ 
@@ -16,7 +19,9 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
   activeGames,
   onSelectGroup, 
   onResumeGame,
-  onCreateGroup 
+  onCreateGroup,
+  onShareGroup,
+  currentUserId
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -28,8 +33,13 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
     setIsModalOpen(false);
   };
 
-  // Sort active games to show most recent start time first
-  const sortedActiveGames = [...activeGames].sort((a, b) => b.startTime - a.startTime);
+  // Filter active games to only those belonging to accessible groups
+  const accessibleGroupIds = new Set(groups.map(g => g.id));
+  const filteredActiveGames = activeGames.filter(game => 
+    game.groupId && accessibleGroupIds.has(game.groupId)
+  );
+
+  const sortedActiveGames = [...filteredActiveGames].sort((a, b) => b.startTime - a.startTime);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -38,7 +48,6 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
         <p className="text-neutral-400">Select a group to manage your games.</p>
       </div>
 
-      {/* Active Games Section on Home Page */}
       {sortedActiveGames.length > 0 && (
         <div className="space-y-4">
            <h2 className="text-xl font-bold text-white flex items-center gap-2 px-1">
@@ -73,7 +82,6 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
         </div>
       )}
 
-      {/* Groups Header & Actions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
              <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -86,32 +94,73 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Existing Groups */}
-            {groups.map(group => (
-              <Card 
-                key={group.id} 
-                className="h-40 relative group cursor-pointer hover:border-red-600/50 transition-all flex flex-col justify-between"
-              >
-                <div onClick={() => onSelectGroup(group.id)} className="absolute inset-0 z-0"></div>
-                <div>
-                  <h3 className="text-xl font-bold text-white mb-1 group-hover:text-red-400 transition-colors">{group.name}</h3>
-                  <div className="flex items-center gap-2 text-neutral-500 text-sm">
-                    <Users size={14} />
-                    {group.playerIds.length} Members
-                  </div>
-                </div>
-                <div className="flex justify-between items-end">
-                   <span className="text-xs text-neutral-600">
-                     Created {new Date(group.createdAt).toLocaleDateString()}
-                   </span>
-                   <div className="bg-neutral-950 p-2 rounded-full text-neutral-400 group-hover:text-white group-hover:translate-x-1 transition-all">
-                     <ChevronRight size={16} />
-                   </div>
-                </div>
-              </Card>
-            ))}
+            {groups.map(group => {
+              const isOwner = group.ownerId === currentUserId;
+              const isShared = (group.sharedWithEmails?.length || 0) > 0;
+              
+              return (
+                <Card 
+                  key={group.id} 
+                  onClick={() => onSelectGroup(group.id)}
+                  className="h-44 relative group cursor-pointer hover:border-red-600/50 transition-all flex flex-col justify-between"
+                >
+                  <div className="relative z-10 h-full flex flex-col justify-between pointer-events-none">
+                    <div className="flex justify-between items-start pointer-events-auto">
+                      <div>
+                        <h3 className="text-xl font-bold text-white mb-1 group-hover:text-red-400 transition-colors line-clamp-1">{group.name}</h3>
+                        <div className="flex items-center gap-2 text-neutral-500 text-sm">
+                          <Users size={14} />
+                          {group.playerIds.length} Members
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {isOwner ? (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); onShareGroup(group); }}
+                            className="p-1.5 rounded-lg bg-neutral-950 text-neutral-400 hover:text-white hover:bg-red-600/20 transition-all border border-neutral-800 relative z-20"
+                            title="Share Group"
+                          >
+                            <Share2 size={16} />
+                          </button>
+                        ) : (
+                          <div className="p-1.5 rounded-lg bg-neutral-950 text-blue-500 border border-blue-900/30" title="Shared with you">
+                             <Lock size={16} />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 flex flex-wrap gap-2 pointer-events-none">
+                      {isOwner && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-red-900/20 text-red-500 px-2 py-0.5 rounded border border-red-900/30 uppercase tracking-wider">
+                           <ShieldCheck size={10} /> Owner
+                        </span>
+                      )}
+                      {!isOwner && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-900/20 text-blue-500 px-2 py-0.5 rounded border border-blue-900/30 uppercase tracking-wider">
+                           Collaborator
+                        </span>
+                      )}
+                      {isShared && isOwner && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-neutral-800 text-neutral-400 px-2 py-0.5 rounded border border-neutral-700 uppercase tracking-wider">
+                           Shared ({group.sharedWithEmails?.length})
+                        </span>
+                      )}
+                    </div>
 
-            {/* Empty State */}
+                    <div className="mt-auto flex justify-between items-end pointer-events-none">
+                      <span className="text-[10px] text-neutral-600 uppercase font-bold tracking-widest">
+                        {new Date(group.createdAt).toLocaleDateString()}
+                      </span>
+                      <div className="bg-neutral-950 p-2 rounded-full text-neutral-400 group-hover:text-white group-hover:translate-x-1 transition-all border border-neutral-800">
+                        <ChevronRight size={16} />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+
             {groups.length === 0 && (
                  <button 
                    onClick={() => setIsModalOpen(true)}
@@ -127,7 +176,6 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
         </div>
       </div>
 
-      {/* Create Modal */}
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)}

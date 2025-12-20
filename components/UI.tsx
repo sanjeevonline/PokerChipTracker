@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { X } from 'lucide-react';
 
@@ -89,9 +90,17 @@ export const Select: React.FC<SelectProps> = ({ label, options, className = '', 
 };
 
 // --- Card ---
-export const Card: React.FC<{ children: React.ReactNode; className?: string, title?: string }> = ({ children, className = '', title }) => {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: React.ReactNode;
+  title?: string;
+}
+
+export const Card: React.FC<CardProps> = ({ children, className = '', title, ...props }) => {
   return (
-    <div className={`bg-neutral-900/80 border border-neutral-800 rounded-xl p-6 backdrop-blur-sm ${className}`}>
+    <div 
+      className={`bg-neutral-900/80 border border-neutral-800 rounded-xl p-6 backdrop-blur-sm ${className}`}
+      {...props}
+    >
       {title && <h3 className="text-lg font-bold text-white mb-4 border-b border-neutral-800 pb-2 flex items-center gap-2">
         <span className="w-1 h-4 bg-red-600 rounded-full inline-block"></span>
         {title}

@@ -230,8 +230,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({ game, allPlayers, onCrea
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <Button onClick={() => setModalType('BUY_IN')} icon={<Plus size={18} />}>Buy In</Button>
-          <Button onClick={() => setModalType('CASH_OUT')} variant="secondary" icon={<LogOut size={18} />}>Cash Out</Button>
           <Button onClick={() => setModalType('TRANSFER')} variant="secondary" icon={<ArrowRightLeft size={18} />}>Transfer</Button>
+          <Button onClick={() => setModalType('CASH_OUT')} variant="secondary" icon={<LogOut size={18} />}>Early Cash Out</Button>
           <Button onClick={() => setModalType('ADD_PLAYER')} variant="secondary" icon={<UserPlus size={18} />}>Add Player</Button>
           <Button onClick={openCountModal} variant="danger" icon={<Save size={18} />}>End Game</Button>
         </div>

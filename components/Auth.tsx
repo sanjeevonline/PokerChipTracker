@@ -1,11 +1,12 @@
+
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { Button, Input, Card } from './UI';
-import { AlertCircle, Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
+import { AlertCircle, Mail, Lock, Loader2, ArrowRight, ChevronLeft } from 'lucide-react';
 
 export const Auth: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [mode, setMode] = useState<'LOGIN' | 'REGISTER' | 'RESET'>('LOGIN');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +31,13 @@ export const Auth: React.FC = () => {
         });
         if (error) throw error;
         setMessage("Registration successful! Please check your email to verify your account.");
+        setMode('LOGIN');
+      } else if (mode === 'RESET') {
+        const { error } = await (supabase.auth as any).resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (error) throw error;
+        setMessage("Password reset link sent! Check your inbox.");
         setMode('LOGIN');
       } else {
         const { error } = await (supabase.auth as any).signInWithPassword({
@@ -78,22 +86,34 @@ export const Auth: React.FC = () => {
         </div>
 
         <div className="bg-neutral-900/80 backdrop-blur-md border border-neutral-800 rounded-2xl p-8 shadow-xl">
-          <div className="flex gap-4 mb-6 border-b border-neutral-800 pb-1">
-            <button
-              onClick={() => { setMode('LOGIN'); setError(null); setMessage(null); }}
-              className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${mode === 'LOGIN' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
-            >
-              Sign In
-              {mode === 'LOGIN' && <div className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-red-600 rounded-full"></div>}
-            </button>
-            <button
-              onClick={() => { setMode('REGISTER'); setError(null); setMessage(null); }}
-              className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${mode === 'REGISTER' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
-            >
-              Create Account
-              {mode === 'REGISTER' && <div className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-red-600 rounded-full"></div>}
-            </button>
-          </div>
+          {mode !== 'RESET' ? (
+            <div className="flex gap-4 mb-6 border-b border-neutral-800 pb-1">
+              <button
+                onClick={() => { setMode('LOGIN'); setError(null); setMessage(null); }}
+                className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${mode === 'LOGIN' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+              >
+                Sign In
+                {mode === 'LOGIN' && <div className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-red-600 rounded-full"></div>}
+              </button>
+              <button
+                onClick={() => { setMode('REGISTER'); setError(null); setMessage(null); }}
+                className={`flex-1 pb-3 text-sm font-medium transition-colors relative ${mode === 'REGISTER' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
+              >
+                Create Account
+                {mode === 'REGISTER' && <div className="absolute bottom-[-1px] left-0 w-full h-0.5 bg-red-600 rounded-full"></div>}
+              </button>
+            </div>
+          ) : (
+            <div className="mb-6 flex items-center gap-2">
+              <button 
+                onClick={() => { setMode('LOGIN'); setError(null); setMessage(null); }}
+                className="p-1.5 rounded-full hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h2 className="text-lg font-bold text-white">Reset Password</h2>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-start gap-3">
@@ -123,19 +143,33 @@ export const Auth: React.FC = () => {
                 />
               </div>
             </div>
-            <div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-3 text-neutral-500" size={18} />
-                <input
-                  type="password"
-                  required
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg py-2.5 pl-10 pr-4 text-white placeholder-neutral-500 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-colors"
-                />
+
+            {mode !== 'RESET' && (
+              <div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-3 text-neutral-500" size={18} />
+                  <input
+                    type="password"
+                    required
+                    placeholder="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded-lg py-2.5 pl-10 pr-4 text-white placeholder-neutral-500 focus:outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-colors"
+                  />
+                </div>
+                {mode === 'LOGIN' && (
+                  <div className="flex justify-end mt-2">
+                    <button 
+                      type="button"
+                      onClick={() => setMode('RESET')}
+                      className="text-xs text-neutral-500 hover:text-red-400 transition-colors"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             <Button 
                 type="submit" 
@@ -143,7 +177,7 @@ export const Auth: React.FC = () => {
                 disabled={isLoading}
             >
               {isLoading && <Loader2 size={18} className="animate-spin" />}
-              {mode === 'LOGIN' ? 'Sign In' : 'Create Account'}
+              {mode === 'LOGIN' ? 'Sign In' : mode === 'REGISTER' ? 'Create Account' : 'Send Reset Link'}
               {!isLoading && <ArrowRight size={18} />}
             </Button>
           </form>

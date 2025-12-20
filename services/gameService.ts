@@ -1,3 +1,4 @@
+
 import { GameSession, Transaction, TransactionType, Player, GameSettlementReport, PlayerSettlement, PlayerStats, Group } from '../types';
 import { supabase } from './supabaseClient';
 
@@ -12,7 +13,6 @@ export const api = {
    * Fetch all players from DB or LocalStorage
    */
   fetchPlayers: async (): Promise<Player[]> => {
-    // 1. Try Supabase
     if (supabase) {
       const { data, error } = await supabase
         .from('players')
@@ -25,7 +25,6 @@ export const api = {
       if (error) console.error("Supabase error fetching players:", error.message || JSON.stringify(error));
     }
 
-    // 2. Fallback to LocalStorage
     try {
       const raw = localStorage.getItem(STORAGE_KEY_PLAYERS);
       if (raw) {
@@ -44,11 +43,15 @@ export const api = {
   savePlayer: async (player: Player): Promise<void> => {
     if (supabase) {
       const { error } = await supabase.from('players').insert(player);
-      if (error) console.error("Supabase error saving player:", error.message || JSON.stringify(error));
+      if (error) {
+        console.error("Supabase error saving player:", error.message);
+        if (error.code === '42501') {
+          throw new Error("RLS Policy Error: You don't have permission to add players. Please run the setup SQL.");
+        }
+      }
       return;
     }
 
-    // LocalStorage Fallback
     const players = await api.fetchPlayers();
     const updated = [...players, player].sort((a, b) => a.name.localeCompare(b.name));
     localStorage.setItem(STORAGE_KEY_PLAYERS, JSON.stringify(updated));
@@ -59,25 +62,26 @@ export const api = {
    */
   fetchGroups: async (): Promise<Group[]> => {
     if (supabase) {
-      // Removed .order('created_at') to avoid errors if column doesn't exist yet
       const { data, error } = await supabase
         .from('groups')
         .select('*');
 
       if (!error && data) {
-        console.log("Groups data received:", data);
         return data.map((d: any) => ({
            id: d.id,
            name: d.name,
-           // Handle potential casing differences in DB columns
            playerIds: d.player_ids || d.playerIds || [],
-           createdAt: d.created_at ? new Date(d.created_at).getTime() : Date.now()
+           createdAt: d.created_at ? new Date(d.created_at).getTime() : Date.now(),
+           ownerId: d.owner_id || d.ownerId,
+           sharedWithEmails: d.shared_with_emails || d.sharedWithEmails || []
         })).sort((a: Group, b: Group) => a.createdAt - b.createdAt);
       }
-      if (error) console.error("Supabase error fetching groups:", error.message || JSON.stringify(error));
+      if (error) {
+        console.error("Supabase error fetching groups:", error.message || JSON.stringify(error));
+        return [];
+      }
     }
 
-    // LocalStorage Fallback
     try {
       const raw = localStorage.getItem(STORAGE_KEY_GROUPS);
       return raw ? JSON.parse(raw) : [];
@@ -91,17 +95,30 @@ export const api = {
    */
   saveGroup: async (group: Group): Promise<void> => {
     if (supabase) {
-      const { error } = await supabase.from('groups').upsert({
+      // Robust session check to ensure we have a valid owner_id
+      const { data: { user } } = await (supabase.auth as any).getUser();
+      
+      const payload = {
         id: group.id,
         name: group.name,
         player_ids: group.playerIds,
-        created_at: new Date(group.createdAt).toISOString()
-      });
-      if(error) console.error("Supabase error saving group:", error.message || JSON.stringify(error));
+        created_at: new Date(group.createdAt).toISOString(),
+        owner_id: group.ownerId || user?.id,
+        shared_with_emails: group.sharedWithEmails || []
+      };
+
+      const { error } = await supabase.from('groups').upsert(payload);
+      
+      if (error) {
+        console.error("Supabase error saving group:", error.message, error.code);
+        if (error.code === '42501') {
+           throw new Error(`SECURITY_DENIED: Your Supabase Row Level Security (RLS) is blocking this update. You must configure policies for the 'groups' table to allow INSERT and UPDATE for owners and collaborators.`);
+        }
+        throw error;
+      }
       return;
     }
 
-    // LocalStorage
     const groups = await api.fetchGroups();
     const index = groups.findIndex(g => g.id === group.id);
     let updated;
@@ -132,7 +149,6 @@ export const api = {
    */
   fetchGames: async (): Promise<GameSession[]> => {
     if (supabase) {
-      // We store the full GameSession object in the 'data' JSONB column
       const { data, error } = await supabase
         .from('games')
         .select('data')
@@ -144,7 +160,6 @@ export const api = {
       if (error) console.error("Supabase error fetching games:", error.message || JSON.stringify(error));
     }
 
-    // LocalStorage Fallback
     try {
       const raw = localStorage.getItem(STORAGE_KEY_GAMES);
       return raw ? JSON.parse(raw) : [];
@@ -163,14 +178,18 @@ export const api = {
         .upsert({ 
           id: game.id, 
           data: game,
-          created_at: new Date(game.startTime).toISOString() // Ensure ordering
+          created_at: new Date(game.startTime).toISOString()
         });
         
-      if (error) console.error("Supabase error saving game:", error.message || JSON.stringify(error));
+      if (error) {
+        console.error("Supabase error saving game:", error.message);
+        if (error.code === '42501') {
+           throw new Error("SECURITY_DENIED: RLS policy is blocking 'games' table updates.");
+        }
+      }
       return;
     }
 
-    // LocalStorage Fallback (Warning: O(N) but fine for small arrays)
     const games = await api.fetchGames();
     const index = games.findIndex(g => g.id === game.id);
     let updatedGames;
@@ -180,41 +199,58 @@ export const api = {
       updatedGames = [game, ...games];
     }
     localStorage.setItem(STORAGE_KEY_GAMES, JSON.stringify(updatedGames));
+  },
+
+  /**
+   * Verify if a user exists by their email via the public profiles table.
+   */
+  checkUserExistsByEmail: async (email: string): Promise<boolean> => {
+    if (!supabase) return true; 
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === '42P01') {
+          throw new Error("TABLE_MISSING: The 'profiles' table does not exist. Please run the setup SQL.");
+        }
+        throw error;
+      }
+
+      return !!data;
+    } catch (err: any) {
+      console.error("User lookup failed:", err.message);
+      throw err;
+    }
   }
 };
 
 // --- Calculation Logic (Sync) ---
-// These remain synchronous as they operate on in-memory objects
-
-// Helper to round currency to 2 decimal places to avoid float errors
 const round = (num: number) => Math.round((num + Number.EPSILON) * 100) / 100;
 
 export const calculateSettlement = (game: GameSession): GameSettlementReport => {
   const settlements: PlayerSettlement[] = game.players.map(p => {
-    // 1. Calculate Bank Buy Ins
     const bankBuyIns = game.transactions
       .filter(t => t.type === TransactionType.BUY_IN && t.toId === p.id)
       .reduce((sum, t) => sum + t.amount, 0);
 
-    // 2. Calculate Transfers (Loans)
-    // Money received from another player is treated as an additional "Buy In" (liability) for the receiver
     const transfersIn = game.transactions
       .filter(t => t.type === TransactionType.TRANSFER && t.toId === p.id)
       .reduce((sum, t) => sum + t.amount, 0);
 
-    // Money sent to another player reduces the sender's "Invested" amount (they gave away value)
     const transfersOut = game.transactions
       .filter(t => t.type === TransactionType.TRANSFER && t.fromId === p.id)
       .reduce((sum, t) => sum + t.amount, 0);
 
-    // 3. Cash Outs during game (Reverse Buy In)
     const cashOutsDuringGame = game.transactions
       .filter(t => t.type === TransactionType.CASH_OUT && t.fromId === p.id)
       .reduce((sum, t) => sum + t.amount, 0);
 
-    // Net Invested = (BankBuyIns - CashOutsToBank) + (BorrowedFromPlayers - LoanedToPlayers)
     const netInvested = round((bankBuyIns - cashOutsDuringGame) + (transfersIn - transfersOut));
-
     const finalChips = game.playerStates[p.id]?.finalChips || 0;
 
     return {
@@ -229,15 +265,14 @@ export const calculateSettlement = (game: GameSession): GameSettlementReport => 
     };
   });
 
-  const totalBuyIn = round(settlements.reduce((sum, s) => sum + s.totalBuyIn, 0)); // Net chips from bank
+  const totalBuyIn = round(settlements.reduce((sum, s) => sum + s.totalBuyIn, 0));
   const totalChips = round(settlements.reduce((sum, s) => sum + s.finalChips, 0));
   
-  // Duration
   const endTime = game.endTime || Date.now();
   const durationMinutes = Math.floor((endTime - game.startTime) / (1000 * 60));
 
   return {
-    players: settlements.sort((a, b) => b.netProfit - a.netProfit), // Winner first
+    players: settlements.sort((a, b) => b.netProfit - a.netProfit),
     totalBuyIn,
     totalChips,
     discrepancy: round(totalChips - totalBuyIn),
@@ -262,10 +297,7 @@ export const getPlayerStats = (player: Player, games: GameSession[]): PlayerStat
   };
 
   games.forEach(game => {
-    // Only count finished games
     if (game.isActive) return;
-
-    // Check if player participated
     const isInGame = game.players.some(p => p.id === player.id);
     if (!isInGame) return;
 
@@ -302,7 +334,6 @@ export const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    // Show cents if amount is not an integer, otherwise show no fraction digits for cleaner UI
     minimumFractionDigits: safeAmount % 1 !== 0 ? 2 : 0,
     maximumFractionDigits: 2,
   }).format(safeAmount);
