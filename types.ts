@@ -2,6 +2,7 @@
 export interface Player {
   id: string;
   name: string;
+  avatar?: string; // Hex color or data URL/URL
 }
 
 export interface Group {

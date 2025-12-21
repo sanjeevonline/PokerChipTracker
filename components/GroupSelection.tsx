@@ -12,6 +12,7 @@ interface GroupSelectionProps {
   onCreateGroup: (name: string) => void;
   onShareGroup: (group: Group) => void;
   currentUserId?: string;
+  currentUserEmail?: string;
 }
 
 export const GroupSelection: React.FC<GroupSelectionProps> = ({ 
@@ -21,7 +22,8 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
   onResumeGame,
   onCreateGroup,
   onShareGroup,
-  currentUserId
+  currentUserId,
+  currentUserEmail
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -96,6 +98,8 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {groups.map(group => {
               const isOwner = group.ownerId === currentUserId;
+              const isCollaborator = group.sharedWithEmails?.includes(currentUserEmail || '');
+              const canShare = isOwner || isCollaborator;
               const isShared = (group.sharedWithEmails?.length || 0) > 0;
               
               return (
@@ -114,7 +118,7 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        {isOwner ? (
+                        {canShare && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); onShareGroup(group); }}
                             className="p-1.5 rounded-lg bg-neutral-950 text-neutral-400 hover:text-white hover:bg-red-600/20 transition-all border border-neutral-800 relative z-20"
@@ -122,10 +126,6 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
                           >
                             <Share2 size={16} />
                           </button>
-                        ) : (
-                          <div className="p-1.5 rounded-lg bg-neutral-950 text-blue-500 border border-blue-900/30" title="Shared with you">
-                             <Lock size={16} />
-                          </div>
                         )}
                       </div>
                     </div>
@@ -136,7 +136,7 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
                            <ShieldCheck size={10} /> Owner
                         </span>
                       )}
-                      {!isOwner && (
+                      {isCollaborator && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-blue-900/20 text-blue-500 px-2 py-0.5 rounded border border-blue-900/30 uppercase tracking-wider">
                            Collaborator
                         </span>

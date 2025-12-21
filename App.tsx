@@ -11,7 +11,7 @@ import { PlayersList } from './components/PlayersList';
 import { PlayerProfile } from './components/PlayerProfile';
 import { GroupSelection } from './components/GroupSelection';
 import { Button, Modal, Input, Card } from './components/UI';
-import { Plus, LayoutDashboard, Settings, Users, Database, ChevronLeft, LogOut, Loader2, Coins, Banknote, Share2, Mail, X, AlertCircle, HelpCircle, Terminal, ShieldAlert, Copy, Check } from 'lucide-react'; 
+import { Plus, LayoutDashboard, Database, LogOut, Loader2, Coins, Banknote, Share2, X, AlertCircle, HelpCircle, Terminal, ShieldAlert, Copy, Check, User, Users } from 'lucide-react'; 
 
 enum View {
   GROUPS,
@@ -61,6 +61,9 @@ export default function App() {
   const [newGameBuyIns, setNewGameBuyIns] = useState<Record<string, string>>({});
   const [newGameChipValue, setNewGameChipValue] = useState<string>('0.25');
   const [newPlayerName, setNewPlayerName] = useState('');
+
+  // Numerical input classes to hide arrows
+  const noArrowsClass = "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   // Data Loading
   const loadData = async () => {
@@ -256,8 +259,8 @@ export default function App() {
     }
   };
 
-  const createPlayer = (name: string): Player => {
-    return { id: crypto.randomUUID(), name: name.trim() };
+  const createPlayer = (name: string, avatar?: string): Player => {
+    return { id: crypto.randomUUID(), name: name.trim(), avatar };
   };
 
   const handleCreatePlayerInModal = async () => {
@@ -348,8 +351,8 @@ export default function App() {
     setCurrentView(View.ACTIVE_GAME);
   };
 
-  const handleCreatePlayerFromGame = async (name: string) => {
-    const newPlayer = createPlayer(name);
+  const handleCreatePlayerFromGame = async (name: string, avatar?: string) => {
+    const newPlayer = createPlayer(name, avatar);
     try {
       await api.savePlayer(newPlayer);
       setPlayers(prev => [...prev, newPlayer].sort((a,b) => a.name.localeCompare(b.name)));
@@ -419,19 +422,25 @@ export default function App() {
 
   const rlsFixSql = `-- Run this in your Supabase SQL Editor to fix Permission Denied (42501) errors:
 
--- Enable RLS
+-- 1. GROUPS TABLE
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can create groups" ON groups FOR INSERT TO authenticated WITH CHECK (auth.uid() = owner_id);
+CREATE POLICY "Users can view groups" ON groups FOR SELECT TO authenticated USING (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails));
+CREATE POLICY "Users can update groups" ON groups FOR UPDATE TO authenticated USING (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails)) WITH CHECK (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails));
 
--- Creation Policy
-CREATE POLICY "Users can create" ON groups FOR INSERT TO authenticated WITH CHECK (auth.uid() = owner_id);
+-- 2. GAMES TABLE
+ALTER TABLE games ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can manage games" ON games FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- View Policy
-CREATE POLICY "Users can view" ON groups FOR SELECT TO authenticated USING (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails));
-
--- Update Policy (Critical for Sharing)
-CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails)) WITH CHECK (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails));`;
+-- 3. PLAYERS TABLE
+ALTER TABLE players ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO authenticated USING (true) WITH CHECK (true);`;
 
   const renderContent = () => {
+    const isOwnerOfCurrent = currentGroup?.ownerId === session?.user?.id;
+    const isCollaboratorOfCurrent = currentGroup?.sharedWithEmails?.includes(session?.user?.email);
+    const canShareCurrent = isOwnerOfCurrent || isCollaboratorOfCurrent;
+
     switch (currentView) {
       case View.GROUPS:
         return (
@@ -443,6 +452,7 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
                 onCreateGroup={handleCreateGroup} 
                 onShareGroup={handleOpenShare}
                 currentUserId={session?.user?.id}
+                currentUserEmail={session?.user?.email}
             />
         );
 
@@ -491,10 +501,10 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
               setCurrentView(View.PLAYER_PROFILE);
             }}
             onAddPlayerToGroup={handleAddExistingPlayerToGroup}
-            onCreatePlayerInGroup={async (name) => {
-                const newPlayer = createPlayer(name);
+            onCreatePlayerInGroup={async (name, avatar) => {
+                const newPlayer = createPlayer(name, avatar);
                 await api.savePlayer(newPlayer);
-                setPlayers(prev => [...prev, newPlayer]);
+                setPlayers(prev => [...prev, newPlayer].sort((a,b) => a.name.localeCompare(b.name)));
                 await handleAddExistingPlayerToGroup(newPlayer.id);
             }}
           />
@@ -566,7 +576,7 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
                       {groupPlayers.length} Members • {groupGames.length} Games Played
                     </p>
                   </div>
-                  {currentGroup && currentGroup.ownerId === session?.user?.id && (
+                  {currentGroup && canShareCurrent && (
                     <Button variant="ghost" size="sm" onClick={() => handleOpenShare(currentGroup)} icon={<Share2 size={16}/>}>
                       Share Group
                     </Button>
@@ -603,7 +613,7 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
                  <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.HISTORY)}>View All</Button>
               </div>
               <History 
-                games={groupGames.filter(g => !g.isActive).slice(0, 3)} 
+                games={groupGames.filter(g => !g.isActive).slice(0, 10)} 
                 onSelectGame={(g) => { setViewingGameId(g.id); setCurrentView(View.SETTLEMENT); }}
               />
             </div>
@@ -612,46 +622,51 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
     }
   };
 
+  const isOwnerOfSharing = sharingGroup?.ownerId === session?.user?.id;
+
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans selection:bg-red-900 selection:text-white">
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-sans selection:bg-red-900 selection:text-white overflow-x-hidden">
       <nav className="border-b border-neutral-800 bg-black/50 backdrop-blur-lg sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-bold text-xl cursor-pointer group" onClick={() => handleBackToGroups()}>
-            <div className="w-8 h-10 bg-red-600 rounded border border-red-800 flex items-center justify-center text-black shadow-lg shadow-red-900/20 group-hover:scale-105 transition-transform">
-              <span className="font-serif text-3xl leading-none pb-1">♠</span>
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between gap-2 overflow-hidden">
+          <div className="flex items-center gap-2 font-bold text-lg sm:text-xl cursor-pointer group min-w-0" onClick={() => handleBackToGroups()}>
+            <div className="w-7 h-9 sm:w-8 sm:h-10 bg-red-600 rounded border border-red-800 flex items-center justify-center text-black shadow-lg shadow-red-900/20 group-hover:scale-105 transition-transform shrink-0">
+              <span className="font-serif text-2xl sm:text-3xl leading-none pb-1">♠</span>
             </div>
-            <span className="group-hover:text-white transition-colors">
-                ChipTracker
-                {currentGroup && <span className="text-neutral-500 font-normal mx-2">/</span>}
-                {currentGroup && <span className="text-sm font-normal text-neutral-300">{currentGroup.name}</span>}
+            <span className="group-hover:text-white transition-colors flex items-center min-w-0 truncate">
+                <span className="hidden xs:inline">ChipTracker</span>
+                <span className="xs:hidden">CT</span>
+                {currentGroup && <span className="text-neutral-500 font-normal mx-1 sm:mx-2 shrink-0">/</span>}
+                {currentGroup && <span className="text-xs sm:text-sm font-normal text-neutral-300 truncate">{currentGroup.name}</span>}
             </span>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {selectedGroupId && (
-                <div className="flex items-center gap-1">
-                  <Button variant="ghost" onClick={() => setCurrentView(View.DASHBOARD)} icon={<LayoutDashboard size={18}/>}>
-                    <span className="hidden sm:inline">Dashboard</span>
+                <div className="flex items-center gap-0.5 sm:gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.DASHBOARD)} icon={<LayoutDashboard size={18}/>} className="px-2 sm:px-3">
+                    <span className="hidden lg:inline">Dashboard</span>
                   </Button>
-                  <Button variant="ghost" onClick={() => setCurrentView(View.PLAYERS)} icon={<Users size={18}/>}>
-                    <span className="hidden sm:inline">Players</span>
-                  </Button>
-                  <Button variant="ghost" onClick={() => setCurrentView(View.HISTORY)} icon={<Settings size={18}/>}>
-                    <span className="hidden sm:inline">History</span>
-                  </Button>
-                  <Button variant="ghost" onClick={handleBackToGroups} icon={<ChevronLeft size={18}/>} className="text-neutral-400">
-                      <span className="hidden sm:inline">Switch Group</span>
+                  <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.PLAYERS)} icon={<Users size={18}/>} className="px-2 sm:px-3">
+                    <span className="hidden lg:inline">Players</span>
                   </Button>
                 </div>
             )}
             
             {supabase && session && (
-               <div className="pl-2 ml-2 border-l border-neutral-800">
+               <div className="pl-1 sm:pl-2 ml-1 sm:ml-2 border-l border-neutral-800 flex items-center gap-1 sm:gap-2">
+                  <div className="hidden md:flex flex-col items-end">
+                    <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">Signed in as</span>
+                    <span className="text-xs text-neutral-300 font-medium max-w-[150px] truncate">{session.user.email}</span>
+                  </div>
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-900/20 border border-red-900/50 flex items-center justify-center text-red-500 md:hidden">
+                    <User size={14} />
+                  </div>
                   <Button 
                     variant="ghost" 
+                    size="sm"
                     onClick={async () => { await (supabase.auth as any).signOut(); setSession(null); }} 
-                    icon={<LogOut size={18}/>} 
-                    className="text-red-500 hover:text-red-400 hover:bg-red-900/10"
+                    icon={<LogOut size={16}/>} 
+                    className="text-red-500 hover:text-red-400 hover:bg-red-900/10 px-2 sm:px-3"
                   >
                     <span className="hidden sm:inline">Log Out</span>
                   </Button>
@@ -703,7 +718,7 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
             <div className="flex items-start gap-3 p-3 bg-neutral-900/50 border border-neutral-800 rounded-xl">
                <HelpCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
                <p className="text-xs text-neutral-400 leading-relaxed">
-                  Enter the email address of the person you want to collaborate with. They must have a ChipTracker account.
+                  Enter the email address of the person you want to collaborate with. {isOwnerOfSharing ? 'As the owner, you can manage all members.' : 'As a collaborator, you can invite others to join.'}
                </p>
             </div>
             
@@ -722,16 +737,16 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
             </div>
 
             <div className="space-y-3">
-                <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Collaborators</h4>
+                <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Members</h4>
                 <div className="bg-neutral-900 rounded-xl border border-neutral-800 divide-y divide-neutral-800 overflow-hidden shadow-inner">
                     <div className="p-3 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-red-900/20 text-red-500 flex items-center justify-center font-bold text-xs border border-red-900/30 shadow-sm">
-                                {session?.user?.email?.charAt(0).toUpperCase()}
+                                {isOwnerOfSharing ? session?.user?.email?.charAt(0).toUpperCase() : sharingGroup?.ownerId?.charAt(0).toUpperCase() || '?'}
                             </div>
                             <div>
-                                <div className="text-sm font-bold text-white">{session?.user?.email}</div>
-                                <div className="text-[10px] text-red-500 font-bold uppercase tracking-wider">You (Owner)</div>
+                                <div className="text-sm font-bold text-white">Group Owner</div>
+                                <div className="text-[10px] text-red-500 font-bold uppercase tracking-wider">{isOwnerOfSharing ? session?.user?.email : 'Primary Manager'}</div>
                             </div>
                         </div>
                     </div>
@@ -743,16 +758,18 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
                                 </div>
                                 <div>
                                     <div className="text-sm font-medium text-neutral-200">{email}</div>
-                                    <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Can edit</div>
+                                    <div className="text-[10px] text-neutral-500 font-bold uppercase tracking-wider">Collaborator</div>
                                 </div>
                             </div>
-                            <button 
-                                onClick={() => handleRemoveShareEmail(email)} 
-                                className="p-2 text-neutral-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                title="Remove Access"
-                            >
-                                <X size={16}/>
-                            </button>
+                            {isOwnerOfSharing && (
+                                <button 
+                                    onClick={() => handleRemoveShareEmail(email)} 
+                                    className="p-2 text-neutral-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                    title="Remove Access"
+                                >
+                                    <X size={16}/>
+                                </button>
+                            )}
                         </div>
                     ))}
                     {(sharingGroup?.sharedWithEmails?.length || 0) === 0 && (
@@ -779,7 +796,7 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
           </div>
           {gameMode === 'SINGLE' && (
             <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-              <Input label="Chip Value ($)" type="number" step="0.01" value={newGameChipValue} onChange={(e) => setNewGameChipValue(e.target.value)} />
+              <Input label="Chip Value ($)" type="number" step="0.01" value={newGameChipValue} onChange={(e) => setNewGameChipValue(e.target.value)} className={noArrowsClass} />
             </div>
           )}
           <div className="space-y-2">
@@ -808,13 +825,24 @@ CREATE POLICY "Users can update" ON groups FOR UPDATE TO authenticated USING (au
                     return (
                       <tr key={p.id} className={`transition-colors ${isSelected ? 'bg-red-900/10' : 'hover:bg-neutral-800/50'}`}>
                         <td className="p-3"><input type="checkbox" checked={isSelected} onChange={() => togglePlayerSelection(p.id)} className="rounded border-neutral-600 bg-neutral-800 text-red-600 focus:ring-red-600 accent-red-600" /></td>
-                        <td className="p-3 font-medium cursor-pointer" onClick={() => togglePlayerSelection(p.id)}>{p.name}</td>
+                        <td className="p-3 font-medium cursor-pointer" onClick={() => togglePlayerSelection(p.id)}>
+                           <div className="flex items-center gap-2">
+                              {p.avatar && p.avatar.startsWith('data:') ? (
+                                <img src={p.avatar} alt="" className="w-6 h-6 rounded-full object-cover border border-neutral-700" />
+                              ) : (
+                                <div className="w-6 h-6 rounded-full border border-neutral-700 shadow-inner flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: p.avatar || '#262626' }}>
+                                   {p.name.charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              {p.name}
+                           </div>
+                        </td>
                         {gameMode === 'SINGLE' ? (
                             <>
-                                <td className="p-3"><input type="number" step="1" disabled={!isSelected} value={inputValueStr} onChange={(e) => handleBuyInChange(p.id, e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none" /></td>
+                                <td className="p-3"><input type="number" step="1" disabled={!isSelected} value={inputValueStr} onChange={(e) => handleBuyInChange(p.id, e.target.value)} className={`w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none ${noArrowsClass}`} /></td>
                                 <td className="p-3 text-right font-mono text-neutral-300">{isSelected ? formatCurrency(totalVal) : '-'}</td>
                             </>
-                        ) : (<td className="p-3"><input type="number" step="1" disabled={!isSelected} value={inputValueStr} onChange={(e) => handleBuyInChange(p.id, e.target.value)} className="w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none font-mono" /></td>)}
+                        ) : (<td className="p-3"><input type="number" step="1" disabled={!isSelected} value={inputValueStr} onChange={(e) => handleBuyInChange(p.id, e.target.value)} className={`w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none font-mono ${noArrowsClass}`} /></td>)}
                       </tr>
                     );
                   })}
