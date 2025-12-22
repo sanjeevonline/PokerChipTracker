@@ -10,6 +10,7 @@ import { History } from './components/History';
 import { PlayersList } from './components/PlayersList';
 import { PlayerProfile } from './components/PlayerProfile';
 import { GroupSelection } from './components/GroupSelection';
+import { GroupInsights } from './components/GroupInsights';
 import { Button, Modal, Input, Card } from './components/UI';
 import { Plus, LayoutDashboard, Database, LogOut, Loader2, Coins, Banknote, Share2, X, AlertCircle, HelpCircle, Terminal, ShieldAlert, Copy, Check, User, Users } from 'lucide-react'; 
 
@@ -161,6 +162,19 @@ export default function App() {
     }
   };
 
+  const handleDeleteGroup = async (groupId: string) => {
+    try {
+      await api.deleteGroup(groupId);
+      setGroups(prev => prev.filter(g => g.id !== groupId));
+      if (selectedGroupId === groupId) {
+        setSelectedGroupId(null);
+        setCurrentView(View.GROUPS);
+      }
+    } catch (e: any) {
+      setGlobalError(e.message);
+    }
+  };
+
   const handleSelectGroup = (groupId: string) => {
     setSelectedGroupId(groupId);
     setCurrentView(View.DASHBOARD);
@@ -296,8 +310,8 @@ export default function App() {
     const initialTransactions: Transaction[] = [];
     selectedPlayers.forEach(p => {
        const inputValue = parseFloat(newGameBuyIns[p.id]);
-       const amount = gameMode === 'SINGLE' ? inputValue * (chipValue || 0) : inputValue;
-       if (amount > 0) {
+       if (!isNaN(inputValue) && inputValue > 0) {
+         const amount = gameMode === 'SINGLE' ? inputValue * (chipValue || 0) : inputValue;
          initialTransactions.push({
            id: crypto.randomUUID(),
            timestamp: startTime,
@@ -375,8 +389,14 @@ export default function App() {
     setNewGamePlayers(prev => {
       if (prev.includes(id)) return prev.filter(p => p !== id);
       else {
-        const defaultAmt = gameMode === 'SINGLE' ? '100' : '25';
-        setNewGameBuyIns(prevBI => ({ ...prevBI, [id]: defaultAmt }));
+        // Only set default if it's currently empty
+        setNewGameBuyIns(prevBI => {
+          if (!prevBI[id]) {
+            const defaultAmt = gameMode === 'SINGLE' ? '100' : '25';
+            return { ...prevBI, [id]: defaultAmt };
+          }
+          return prevBI;
+        });
         return [...prev, id];
       }
     });
@@ -390,7 +410,9 @@ export default function App() {
     setGameMode(mode);
     const updatedBuyIns = { ...newGameBuyIns };
     newGamePlayers.forEach(id => {
-        updatedBuyIns[id] = mode === 'SINGLE' ? '100' : '25';
+        // If it's a known default, swap it. If custom, leave it.
+        if (updatedBuyIns[id] === '100' && mode === 'MULTI') updatedBuyIns[id] = '25';
+        else if (updatedBuyIns[id] === '25' && mode === 'SINGLE') updatedBuyIns[id] = '100';
     });
     setNewGameBuyIns(updatedBuyIns);
   };
@@ -427,6 +449,7 @@ ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can create groups" ON groups FOR INSERT TO authenticated WITH CHECK (auth.uid() = owner_id);
 CREATE POLICY "Users can view groups" ON groups FOR SELECT TO authenticated USING (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails));
 CREATE POLICY "Users can update groups" ON groups FOR UPDATE TO authenticated USING (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails)) WITH CHECK (auth.uid() = owner_id OR (auth.jwt() ->> 'email') = ANY(shared_with_emails));
+CREATE POLICY "Users can delete groups" ON groups FOR DELETE TO authenticated USING (auth.uid() = owner_id);
 
 -- 2. GAMES TABLE
 ALTER TABLE games ENABLE ROW LEVEL SECURITY;
@@ -447,12 +470,15 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
             <GroupSelection 
                 groups={groups} 
                 activeGames={games.filter(g => g.isActive)}
+                allGames={games}
                 onSelectGroup={handleSelectGroup} 
                 onResumeGame={handleResumeGame}
                 onCreateGroup={handleCreateGroup} 
+                onDeleteGroup={handleDeleteGroup}
                 onShareGroup={handleOpenShare}
                 currentUserId={session?.user?.id}
                 currentUserEmail={session?.user?.email}
+                players={players}
             />
         );
 
@@ -468,7 +494,19 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
               setViewingGameId(activeGame.id);
               setActiveGameId(null);
               setCurrentView(View.SETTLEMENT);
-            }} 
+            }}
+            onCancelEdit={() => {
+              // If we were editing (has endTime), set back to inactive and show report
+              if (activeGame.endTime) {
+                const revertedGame = { ...activeGame, isActive: false };
+                handleUpdateGame(revertedGame);
+                setViewingGameId(activeGame.id);
+                setCurrentView(View.SETTLEMENT);
+              } else {
+                // If it was just an active game, dashboard
+                setCurrentView(View.DASHBOARD);
+              }
+            }}
           />
         );
       case View.SETTLEMENT:
@@ -604,6 +642,9 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
                 )}
               </div>
             </div>
+
+            {/* Injected Group Insights Section */}
+            <GroupInsights groupGames={groupGames} groupPlayers={groupPlayers} />
 
             <div className="space-y-4">
               <div className="flex justify-between items-center">
@@ -787,11 +828,11 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
       <Modal isOpen={isNewGameModalOpen} onClose={() => setIsNewGameModalOpen(false)} title={`New Game: ${currentGroup?.name}`}>
         <div className="space-y-6">
           <div className="flex gap-2 bg-neutral-900 p-1 rounded-lg border border-neutral-800">
-             <button onClick={() => handleGameModeChange('SINGLE')} className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded transition-all ${gameMode === 'SINGLE' ? 'bg-neutral-800 text-white shadow shadow-black' : 'text-neutral-500 hover:text-neutral-300'}`}>
-                <Coins size={16} /> All Chips Same Value
+             <button onClick={() => handleGameModeChange('SINGLE')} className={`flex-1 flex items-center justify-center py-2 text-sm font-medium rounded transition-all ${gameMode === 'SINGLE' ? 'bg-neutral-800 text-white shadow shadow-black' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                Fixed Value
              </button>
-             <button onClick={() => handleGameModeChange('MULTI')} className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded transition-all ${gameMode === 'MULTI' ? 'bg-neutral-800 text-white shadow shadow-black' : 'text-neutral-500 hover:text-neutral-300'}`}>
-                <Banknote size={16} /> Different Values
+             <button onClick={() => handleGameModeChange('MULTI')} className={`flex-1 flex items-center justify-center py-2 text-sm font-medium rounded transition-all ${gameMode === 'MULTI' ? 'bg-neutral-800 text-white shadow shadow-black' : 'text-neutral-500 hover:text-neutral-300'}`}>
+                Mixed Values
              </button>
           </div>
           {gameMode === 'SINGLE' && (
@@ -801,48 +842,51 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
           )}
           <div className="space-y-2">
             <div className="flex justify-between items-center text-sm font-medium text-neutral-300">
-              <h3>Select Players & Starting Stack</h3>
+              <h3>Select Players & Stacks</h3>
               <div className="text-xs text-neutral-400">{newGamePlayers.length} selected</div>
             </div>
             <div className="max-h-[40vh] overflow-y-auto border border-neutral-800 rounded-lg bg-neutral-900">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-neutral-800 text-neutral-400 sticky top-0">
+              <table className="w-full text-left text-sm table-fixed">
+                <thead className="bg-neutral-800 text-neutral-400 sticky top-0 z-10">
                   <tr>
-                    <th className="p-3 w-10"></th>
+                    <th className="p-3 w-8"></th>
                     <th className="p-3">Player</th>
-                    {gameMode === 'SINGLE' ? (<><th className="p-3 w-32">Buy-In (Chips)</th><th className="p-3 w-24 text-right">Value ($)</th></>) : (<th className="p-3 w-32 text-right">Value ($)</th>)}
+                    <th className="p-3 w-20 text-right">{gameMode === 'SINGLE' ? 'Chips' : '$ Value'}</th>
+                    <th className="p-3 w-20 text-right">$</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-800">
                   {groupPlayers.length === 0 && (<tr><td colSpan={4} className="p-4 text-center text-neutral-500">No players in this group yet.</td></tr>)}
                   {groupPlayers.map(p => {
                     const isSelected = newGamePlayers.includes(p.id);
-                    const defaultVal = gameMode === 'SINGLE' ? '100' : '25';
-                    const inputValueStr = newGameBuyIns[p.id] || defaultVal;
+                    const inputValueStr = newGameBuyIns[p.id] || '';
+                    
                     const chipValNum = parseFloat(newGameChipValue) || 0;
                     const inputNum = parseFloat(inputValueStr) || 0;
-                    const totalVal = gameMode === 'SINGLE' ? inputNum * chipValNum : inputNum;
+                    const calculatedValue = gameMode === 'SINGLE' ? (inputNum * chipValNum) : inputNum;
+
                     return (
                       <tr key={p.id} className={`transition-colors ${isSelected ? 'bg-red-900/10' : 'hover:bg-neutral-800/50'}`}>
                         <td className="p-3"><input type="checkbox" checked={isSelected} onChange={() => togglePlayerSelection(p.id)} className="rounded border-neutral-600 bg-neutral-800 text-red-600 focus:ring-red-600 accent-red-600" /></td>
                         <td className="p-3 font-medium cursor-pointer" onClick={() => togglePlayerSelection(p.id)}>
-                           <div className="flex items-center gap-2">
-                              {p.avatar && p.avatar.startsWith('data:') ? (
-                                <img src={p.avatar} alt="" className="w-6 h-6 rounded-full object-cover border border-neutral-700" />
-                              ) : (
-                                <div className="w-6 h-6 rounded-full border border-neutral-700 shadow-inner flex items-center justify-center text-[8px] font-bold text-white" style={{ backgroundColor: p.avatar || '#262626' }}>
-                                   {p.name.charAt(0).toUpperCase()}
-                                </div>
-                              )}
-                              {p.name}
+                           <div className="flex items-center overflow-hidden">
+                              <span className="truncate">{p.name}</span>
                            </div>
                         </td>
-                        {gameMode === 'SINGLE' ? (
-                            <>
-                                <td className="p-3"><input type="number" step="1" disabled={!isSelected} value={inputValueStr} onChange={(e) => handleBuyInChange(p.id, e.target.value)} className={`w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none ${noArrowsClass}`} /></td>
-                                <td className="p-3 text-right font-mono text-neutral-300">{isSelected ? formatCurrency(totalVal) : '-'}</td>
-                            </>
-                        ) : (<td className="p-3"><input type="number" step="1" disabled={!isSelected} value={inputValueStr} onChange={(e) => handleBuyInChange(p.id, e.target.value)} className={`w-full bg-neutral-950 border border-neutral-800 rounded px-2 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none font-mono ${noArrowsClass}`} /></td>)}
+                        <td className="p-3">
+                            <input 
+                                type="number" 
+                                step="1" 
+                                disabled={!isSelected} 
+                                value={inputValueStr} 
+                                onChange={(e) => handleBuyInChange(p.id, e.target.value)} 
+                                placeholder="0"
+                                className={`w-full bg-neutral-950 border border-neutral-800 rounded px-1.5 py-1 text-right disabled:opacity-30 disabled:cursor-not-allowed focus:border-red-600 focus:outline-none ${noArrowsClass}`} 
+                            />
+                        </td>
+                        <td className="p-3 text-right font-mono text-neutral-500 text-[10px]">
+                           {formatCurrency(calculatedValue)}
+                        </td>
                       </tr>
                     );
                   })}

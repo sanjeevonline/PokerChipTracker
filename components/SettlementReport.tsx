@@ -3,7 +3,8 @@ import React, { useMemo } from 'react';
 import { GameSession, TransactionType, Player } from '../types';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
 import { Button, Card } from './UI';
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit } from 'lucide-react';
+// Added missing LogOut import from lucide-react
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, PiggyBank, HandCoins, LogOut } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 
 interface SettlementReportProps {
@@ -26,18 +27,21 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
     const player = game.players.find(p => p.id === playerId);
     if (!player) return null;
     if (player.avatar && player.avatar.startsWith('data:')) {
-      return <img src={player.avatar} alt="" className="w-8 h-8 rounded-full object-cover border border-neutral-800" />;
+      return <img src={player.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-neutral-800" />;
     }
     const bgColor = player.avatar || '#262626';
     return (
       <div 
-        className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white border border-neutral-800 text-xs"
+        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white border border-neutral-800 text-sm shadow-inner"
         style={{ backgroundColor: bgColor }}
       >
         {player.name.charAt(0).toUpperCase()}
       </div>
     );
   };
+
+  const isFixedValue = typeof game.chipValue === 'number';
+  const chipVal = game.chipValue || 1;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
@@ -48,6 +52,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
              <h2 className="text-2xl font-bold text-white">Game Settlement</h2>
              <p className="text-neutral-400 text-sm">
                {new Date(game.startTime).toLocaleDateString()} • {report.durationMinutes} minutes session
+               {isFixedValue && game.chipValue && <span className="ml-2 text-red-400">• Chip Value: {formatCurrency(game.chipValue)}</span>}
              </p>
           </div>
         </div>
@@ -61,7 +66,10 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
          </Card>
          <Card className="flex flex-col items-center justify-center text-center py-6 bg-gradient-to-br from-neutral-900 to-black border-neutral-800 shadow-xl">
             <div className="text-neutral-500 uppercase text-[10px] font-bold tracking-[0.2em] mb-2">Total Stack Count</div>
-            <div className="text-3xl font-bold text-green-500 font-mono">{formatCurrency(report.totalChips)}</div>
+            <div className="text-3xl font-bold text-green-500 font-mono">
+              {isFixedValue ? `${Math.round(report.totalChips / chipVal).toLocaleString()} chips` : formatCurrency(report.totalChips)}
+            </div>
+            {isFixedValue && <div className="text-xs text-neutral-500 font-mono mt-1">{formatCurrency(report.totalChips)}</div>}
          </Card>
          <Card className={`flex flex-col items-center justify-center text-center py-6 shadow-xl ${report.discrepancy !== 0 ? 'bg-red-950/20 border-red-900/40' : 'bg-gradient-to-br from-neutral-900 to-black border-neutral-800'}`}>
             <div className="text-neutral-500 uppercase text-[10px] font-bold tracking-[0.2em] mb-2 flex items-center gap-2">
@@ -74,7 +82,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
          </Card>
       </div>
 
-      <Card title="Net Profit/Loss Distribution">
+      <Card title="Profit/Loss Analysis">
         <div className="w-full min-h-[300px] mt-4">
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -97,47 +105,84 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
         </div>
       </Card>
 
-      <Card title="Final Results Table" className="overflow-hidden p-0">
-         <div className="overflow-x-auto">
-           <table className="w-full text-left border-collapse">
-             <thead>
-               <tr className="bg-neutral-900 text-neutral-500 text-[10px] uppercase font-bold tracking-[0.1em]">
-                 <th className="p-4">Player</th>
-                 <th className="p-4 text-right">Bank Buy-In</th>
-                 <th className="p-4 text-right">Loans In/Out</th>
-                 <th className="p-4 text-right">Net Invested</th>
-                 <th className="p-4 text-right">Final Chips</th>
-                 <th className="p-4 text-right">Profit/Loss</th>
-               </tr>
-             </thead>
-             <tbody className="divide-y divide-neutral-800/50 text-sm">
-               {report.players.map(p => (
-                 <tr key={p.playerId} className="hover:bg-neutral-900/50 transition-colors">
-                   <td className="p-4">
-                     <div className="flex items-center gap-3">
-                        {renderAvatar(p.playerId)}
-                        <span className="font-bold text-white">{p.name}</span>
-                     </div>
-                   </td>
-                   <td className="p-4 text-right text-neutral-400 font-mono">{formatCurrency(p.totalBuyIn)}</td>
-                   <td className="p-4 text-right">
-                     {p.transfersIn > 0 && <span className="text-red-500/80 block text-[10px] font-bold">BORROWED {formatCurrency(p.transfersIn)}</span>}
-                     {p.transfersOut > 0 && <span className="text-green-500/80 block text-[10px] font-bold">LOANED {formatCurrency(p.transfersOut)}</span>}
-                     {p.transfersIn === 0 && p.transfersOut === 0 && <span className="text-neutral-700">-</span>}
-                   </td>
-                   <td className="p-4 text-right font-medium text-neutral-300 font-mono">{formatCurrency(p.netInvested)}</td>
-                   <td className="p-4 text-right font-mono text-neutral-100">{formatCurrency(p.finalChips)}</td>
-                   <td className={`p-4 text-right font-bold font-mono ${p.netProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                     {p.netProfit > 0 ? '+' : ''}{formatCurrency(p.netProfit)}
-                   </td>
-                 </tr>
-               ))}
-             </tbody>
-           </table>
-         </div>
-      </Card>
+      <div className="space-y-4">
+        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+           <span className="w-1 h-5 bg-red-600 rounded-full"></span>
+           Individual Results
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+           {report.players.map(p => {
+             const isWinner = p.netProfit > 0;
+             const isLoser = p.netProfit < 0;
+             
+             return (
+               <Card key={p.playerId} className={`relative overflow-hidden group border transition-all flex flex-col h-full p-4 ${isWinner ? 'border-green-900/40 hover:border-green-500/50' : isLoser ? 'border-red-900/40 hover:border-red-500/50' : 'border-neutral-800'}`}>
+                  {/* Decorative corner icon */}
+                  <div className={`absolute top-0 right-0 p-1.5 rounded-bl-lg ${isWinner ? 'bg-green-500/10 text-green-500' : isLoser ? 'bg-red-500/10 text-red-500' : 'bg-neutral-800 text-neutral-500'}`}>
+                    {isWinner ? <TrendingUp size={12} /> : isLoser ? <TrendingDown size={12} /> : <div className="w-3 h-3" />}
+                  </div>
 
-      <Card title="Ledger History">
+                  <div className="flex justify-between items-start gap-3 mb-4 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      {renderAvatar(p.playerId)}
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-white truncate pr-1" title={p.name}>{p.name}</h4>
+                        <div className={`text-[9px] font-bold uppercase tracking-wider ${isWinner ? 'text-green-500' : isLoser ? 'text-red-500' : 'text-neutral-500'}`}>
+                          {isWinner ? 'Profit' : isLoser ? 'Loss' : 'Even'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                       <div className={`text-lg font-mono font-black leading-tight ${isWinner ? 'text-green-500' : isLoser ? 'text-red-500' : 'text-white'}`}>
+                          {isWinner ? '+' : ''}{formatCurrency(p.netProfit)}
+                       </div>
+                       {isFixedValue && (
+                          <div className={`text-[9px] font-mono leading-none mt-0.5 ${isWinner ? 'text-green-600' : isLoser ? 'text-red-600' : 'text-neutral-500'}`}>
+                             {isWinner ? '+' : ''}{Math.round(p.netProfit / chipVal).toLocaleString()} chips
+                          </div>
+                       )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-3 border-t border-neutral-800/50 text-[10px] mt-auto">
+                    <div className="space-y-2">
+                       <div>
+                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Bank Buy-In</span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate">
+                            {isFixedValue ? `${Math.round(p.totalBuyIn / chipVal).toLocaleString()} units` : formatCurrency(p.totalBuyIn)}
+                          </span>
+                       </div>
+                       <div>
+                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Net Invested</span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate">
+                            {isFixedValue ? `${Math.round(p.netInvested / chipVal).toLocaleString()} units` : formatCurrency(p.netInvested)}
+                          </span>
+                       </div>
+                    </div>
+                    <div className="space-y-2">
+                       <div>
+                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Final Chips</span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate">
+                             {isFixedValue ? `${Math.round(p.finalChips / chipVal).toLocaleString()} units` : formatCurrency(p.finalChips)}
+                          </span>
+                       </div>
+                       <div>
+                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Loans</span>
+                          <div className="flex flex-col min-w-0">
+                             {p.transfersIn > 0 && <span className="text-red-400 truncate leading-tight">-{isFixedValue ? Math.round(p.transfersIn / chipVal) : formatCurrency(p.transfersIn)} (B)</span>}
+                             {p.transfersOut > 0 && <span className="text-green-400 truncate leading-tight">+{isFixedValue ? Math.round(p.transfersOut / chipVal) : formatCurrency(p.transfersOut)} (L)</span>}
+                             {p.transfersIn === 0 && p.transfersOut === 0 && <span className="text-neutral-600">None</span>}
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+               </Card>
+             );
+           })}
+        </div>
+      </div>
+
+      <Card title="Game Ledger History">
         <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
           {sortedTransactions.length === 0 ? (
             <div className="text-center text-neutral-500 py-8">
@@ -154,22 +199,27 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
               return (
                 <div key={tx.id} className="flex items-center justify-between p-3 bg-neutral-900/30 rounded-xl border border-neutral-800/40">
                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                        {tx.type === TransactionType.BUY_IN ? <DollarSign size={14} /> : <ArrowRightLeft size={14} />}
+                      <div className={`p-2 rounded-lg ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                        {tx.type === TransactionType.BUY_IN ? <DollarSign size={14} /> : tx.type === TransactionType.CASH_OUT ? <LogOut size={14} /> : <ArrowRightLeft size={14} />}
                       </div>
                       <div>
                         <div className="text-xs font-bold text-neutral-200">
                           {tx.type === TransactionType.BUY_IN
                             ? `${toName} bought in` 
-                            : `${fromName} sent to ${toName}`}
+                            : tx.type === TransactionType.CASH_OUT
+                              ? `${fromName} cashed out`
+                              : `${fromName} sent to ${toName}`}
                         </div>
                         <div className="text-[10px] text-neutral-600 uppercase tracking-widest font-bold">
                           {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                    </div>
-                   <div className="font-mono font-bold text-sm text-neutral-300">
-                      {formatCurrency(tx.amount)}
+                   <div className="text-right">
+                      <div className="font-mono font-bold text-sm text-neutral-300">
+                        {isFixedValue ? `${Math.round(tx.amount / chipVal).toLocaleString()} chips` : formatCurrency(tx.amount)}
+                      </div>
+                      {isFixedValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
                    </div>
                 </div>
               );

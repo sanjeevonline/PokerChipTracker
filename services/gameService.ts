@@ -104,6 +104,8 @@ export const api = {
         player_ids: group.playerIds,
         created_at: new Date(group.createdAt).toISOString(),
         owner_id: group.ownerId || user?.id,
+        // Fix: Use group.sharedWithEmails (camelCase) as defined in the Group interface. 
+        // snake_case shared_with_emails is only used for the database payload.
         shared_with_emails: group.sharedWithEmails || []
       };
 
@@ -127,6 +129,27 @@ export const api = {
     } else {
       updated = [...groups, group];
     }
+    localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updated));
+  },
+
+  /**
+   * Delete Group
+   */
+  deleteGroup: async (groupId: string): Promise<void> => {
+    if (supabase) {
+      const { error } = await supabase.from('groups').delete().eq('id', groupId);
+      if (error) {
+        console.error("Supabase error deleting group:", error.message);
+        if (error.code === '42501') {
+           throw new Error("SECURITY_DENIED: RLS policy is blocking group deletion.");
+        }
+        throw error;
+      }
+      return;
+    }
+
+    const groups = await api.fetchGroups();
+    const updated = groups.filter(g => g.id !== groupId);
     localStorage.setItem(STORAGE_KEY_GROUPS, JSON.stringify(updated));
   },
 

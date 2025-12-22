@@ -1,15 +1,18 @@
 
 import React, { useState } from 'react';
-import { Group, GameSession } from '../types';
+import { Group, GameSession, Player } from '../types';
 import { Button, Input, Modal, Card } from './UI';
-import { Plus, Users, ChevronRight, PlayCircle, FolderPlus, Share2, ShieldCheck, Lock } from 'lucide-react';
+import { Plus, Users, ChevronRight, PlayCircle, FolderPlus, Share2, ShieldCheck, Trash2, AlertCircle } from 'lucide-react';
 
 interface GroupSelectionProps {
   groups: Group[];
   activeGames: GameSession[];
+  allGames: GameSession[];
+  players: Player[];
   onSelectGroup: (groupId: string) => void;
   onResumeGame: (groupId: string, gameId: string) => void;
   onCreateGroup: (name: string) => void;
+  onDeleteGroup: (groupId: string) => void;
   onShareGroup: (group: Group) => void;
   currentUserId?: string;
   currentUserEmail?: string;
@@ -19,20 +22,29 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
   groups, 
   activeGames,
   onSelectGroup, 
-  onResumeGame,
-  onCreateGroup,
+  onResumeGame, 
+  onCreateGroup, 
+  onDeleteGroup,
   onShareGroup,
   currentUserId,
   currentUserEmail
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
 
   const handleCreate = () => {
     if (!newGroupName.trim()) return;
     onCreateGroup(newGroupName);
     setNewGroupName('');
     setIsModalOpen(false);
+  };
+
+  const confirmDelete = () => {
+    if (groupToDelete) {
+      onDeleteGroup(groupToDelete.id);
+      setGroupToDelete(null);
+    }
   };
 
   // Filter active games to only those belonging to accessible groups
@@ -127,6 +139,15 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
                             <Share2 size={16} />
                           </button>
                         )}
+                        {isOwner && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setGroupToDelete(group); }}
+                            className="p-1.5 rounded-lg bg-neutral-950 text-neutral-400 hover:text-red-500 hover:bg-red-900/20 transition-all border border-neutral-800 relative z-20"
+                            title="Delete Group"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </div>
                     
@@ -192,6 +213,28 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
           <Button className="w-full" onClick={handleCreate} disabled={!newGroupName.trim()}>
             Create Group
           </Button>
+        </div>
+      </Modal>
+
+      <Modal 
+        isOpen={!!groupToDelete} 
+        onClose={() => setGroupToDelete(null)}
+        title="Confirm Deletion"
+      >
+        <div className="space-y-6">
+          <div className="flex items-start gap-4 p-4 bg-red-950/20 border border-red-900/50 rounded-xl">
+             <AlertCircle className="text-red-500 shrink-0 mt-1" size={24} />
+             <div className="space-y-1">
+                <p className="text-white font-bold">Are you absolutely sure?</p>
+                <p className="text-sm text-red-200/80 leading-relaxed">
+                   Deleting <span className="text-white font-black">"{groupToDelete?.name}"</span> will remove all access for you and your collaborators. This action cannot be undone.
+                </p>
+             </div>
+          </div>
+          <div className="flex gap-3">
+             <Button variant="secondary" className="flex-1" onClick={() => setGroupToDelete(null)}>Cancel</Button>
+             <Button variant="primary" className="flex-1 bg-red-600 hover:bg-red-500" onClick={confirmDelete}>Delete Group</Button>
+          </div>
         </div>
       </Modal>
     </div>
