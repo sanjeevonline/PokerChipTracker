@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { GameSession, Player, Transaction, TransactionType, Group } from './types';
-import { api, formatCurrency } from './services/gameService';
+import { api, formatCurrency, calculateSettlement } from './services/gameService';
 import { supabase } from './services/supabaseClient';
 import { Auth } from './components/Auth';
 import { ActiveGame } from './components/ActiveGame';
@@ -12,7 +12,7 @@ import { PlayerProfile } from './components/PlayerProfile';
 import { GroupSelection } from './components/GroupSelection';
 import { GroupInsights } from './components/GroupInsights';
 import { Button, Modal, Input, Card } from './components/UI';
-import { Plus, LayoutDashboard, Database, LogOut, Loader2, Coins, Banknote, Share2, X, AlertCircle, HelpCircle, Terminal, ShieldAlert, Copy, Check, User, Users, TrendingUp } from 'lucide-react'; 
+import { Plus, LayoutDashboard, Database, LogOut, Loader2, Coins, Banknote, Share2, X, AlertCircle, HelpCircle, Terminal, ShieldAlert, Copy, Check, User, Users, TrendingUp, Trophy, ArrowRight, History as HistoryIcon } from 'lucide-react'; 
 
 enum View {
   GROUPS,
@@ -138,6 +138,32 @@ export default function App() {
   const pulseGroup = groups.find(g => g.id === pulseGroupId);
   const pulseGames = games.filter(g => g.groupId === pulseGroupId);
   const pulsePlayers = pulseGroup ? players.filter(p => pulseGroup.playerIds.includes(p.id)) : [];
+
+  // Group Dashboard Stats Calculation
+  const groupDashboardStats = useMemo(() => {
+    if (!selectedGroupId) return null;
+    const finished = groupGames.filter(g => !g.isActive).sort((a,b) => b.startTime - a.startTime);
+    let totalPot = 0;
+    finished.forEach(g => {
+        const report = calculateSettlement(g);
+        totalPot += report.totalBuyIn;
+    });
+
+    const lastGame = finished[0];
+    let lastWinner = null;
+    if (lastGame) {
+        const report = calculateSettlement(lastGame);
+        if (report.players.length > 0) {
+            lastWinner = report.players[0]; // report.players is sorted by profit
+        }
+    }
+
+    return {
+        totalPot,
+        lastWinner,
+        gameCount: finished.length
+    };
+  }, [selectedGroupId, groupGames]);
 
   // --- Helpers ---
 
@@ -573,7 +599,7 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
       default:
         const active = groupGames.find(g => g.isActive);
         return (
-          <div className="space-y-8 animate-in fade-in duration-300">
+          <div className="space-y-6 animate-in fade-in duration-300">
             {globalError && (
               <div className="bg-red-950/20 border border-red-500/30 p-4 rounded-2xl animate-in zoom-in duration-300">
                 <div className="flex items-start gap-3">
@@ -615,60 +641,125 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
               </div>
             )}
 
-            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-red-950 to-neutral-900 p-8 sm:p-12 border border-red-900/30 shadow-2xl">
-              <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-red-600 rounded-full blur-3xl opacity-20"></div>
-              <div className="relative z-10">
-                <div className="flex justify-between items-start">
+            {/* Enhanced Group Hero Card */}
+            <div className="relative overflow-hidden rounded-[2rem] bg-neutral-900 border border-neutral-800 shadow-2xl p-6 sm:p-10">
+              <div className="absolute top-0 right-0 -mt-16 -mr-16 w-80 h-80 bg-red-600 rounded-full blur-[100px] opacity-10"></div>
+              <div className="absolute bottom-0 left-0 -mb-16 -ml-16 w-80 h-80 bg-neutral-800 rounded-full blur-[100px] opacity-20"></div>
+              
+              <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-8">
+                <div className="flex-1 space-y-6">
                   <div>
-                    <h1 className="text-4xl font-extrabold text-white tracking-tight mb-2">
-                        {currentGroup?.name || 'Dashboard'}
-                    </h1>
-                    <p className="text-red-200/80 text-lg max-w-xl mb-8">
-                      {groupPlayers.length} Members • {groupGames.length} Games Played
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="bg-red-600 p-2 rounded-xl shadow-lg shadow-red-900/40">
+                            <Users size={20} className="text-black" />
+                        </div>
+                        <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tighter uppercase italic">
+                            {currentGroup?.name || 'Dashboard'}
+                        </h1>
+                    </div>
+                    <p className="text-neutral-400 text-sm sm:text-lg max-w-xl font-medium tracking-tight">
+                      <span className="text-white font-bold">{groupPlayers.length}</span> Members connected • 
+                      <span className="text-white font-bold ml-1">{groupDashboardStats?.gameCount || 0}</span> Total Sessions
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {currentGroup && (
-                      <Button variant="ghost" size="sm" onClick={() => handleShowPulse(currentGroup.id)} icon={<TrendingUp size={16}/>}>
-                        Pulse
-                      </Button>
-                    )}
-                    {currentGroup && canShareCurrent && (
-                      <Button variant="ghost" size="sm" onClick={() => handleOpenShare(currentGroup)} icon={<Share2 size={16}/>}>
-                        Share
-                      </Button>
-                    )}
+
+                  {/* Quick Stats Grid inside Hero */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      <div className="bg-black/40 border border-neutral-800/50 p-3 rounded-2xl">
+                          <div className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                              <Coins size={10} className="text-red-500" /> Pot Volume
+                          </div>
+                          <div className="text-lg font-mono font-black text-white leading-none">
+                              {formatCurrency(groupDashboardStats?.totalPot || 0)}
+                          </div>
+                      </div>
+                      <div className="bg-black/40 border border-neutral-800/50 p-3 rounded-2xl">
+                          <div className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                              <Trophy size={10} className="text-yellow-500" /> Reigning Champ
+                          </div>
+                          <div className="text-lg font-black text-white leading-none truncate pr-1">
+                              {groupDashboardStats?.lastWinner?.name || 'N/A'}
+                          </div>
+                      </div>
+                      <div className="bg-black/40 border border-neutral-800/50 p-3 rounded-2xl hidden sm:block">
+                          <div className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                              <HistoryIcon size={10} className="text-blue-500" /> Frequency
+                          </div>
+                          <div className="text-lg font-black text-white leading-none">
+                              {groupDashboardStats?.gameCount || 0} Games
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                      {active ? (
+                        <Button 
+                            onClick={() => { setActiveGameId(active.id); setCurrentView(View.ACTIVE_GAME); }} 
+                            className="bg-red-600 hover:bg-red-500 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center gap-3 shadow-xl shadow-red-900/20"
+                        >
+                            <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                            Resume Live Table
+                        </Button>
+                      ) : (
+                        <Button 
+                            onClick={() => setIsNewGameModalOpen(true)} 
+                            className="bg-red-600 hover:bg-red-500 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs flex items-center gap-2 shadow-xl shadow-red-900/20"
+                        >
+                            <Plus size={16} />
+                            Start New Game
+                        </Button>
+                      )}
+                      
+                      <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => handleShowPulse(currentGroup!.id)}
+                            className="p-3 rounded-xl bg-neutral-800/50 border border-neutral-700 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all shadow-sm"
+                            title="Group Pulse"
+                          >
+                            <TrendingUp size={20} />
+                          </button>
+                          {canShareCurrent && (
+                            <button 
+                              onClick={() => handleOpenShare(currentGroup!)}
+                              className="p-3 rounded-xl bg-neutral-800/50 border border-neutral-700 text-neutral-400 hover:text-white hover:bg-neutral-800 transition-all shadow-sm"
+                              title="Share Group"
+                            >
+                              <Share2 size={20} />
+                            </button>
+                          )}
+                      </div>
                   </div>
                 </div>
-                
-                {active ? (
-                  <div className="bg-black/50 backdrop-blur-md p-6 rounded-xl border border-red-500/30 inline-block w-full max-w-md shadow-lg shadow-black">
-                    <p className="text-red-400 font-bold uppercase text-xs tracking-wider mb-2 flex items-center gap-2">
-                      <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                      Game in Progress
-                    </p>
-                    <div className="flex items-center justify-between mb-4">
-                       <span className="text-white font-medium">{new Date(active.startTime).toLocaleString()}</span>
-                       <span className="text-neutral-400 text-sm">{active.players.length} Players</span>
+
+                {/* Right side teaser for last game */}
+                {groupDashboardStats?.lastWinner && (
+                    <div className="lg:w-72 bg-black/40 border border-neutral-800/50 rounded-3xl p-5 flex flex-col justify-between h-full min-h-[140px] animate-in slide-in-from-right-4 duration-500">
+                        <div className="flex items-center justify-between mb-4">
+                            <span className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.2em]">Latest Result</span>
+                            <span className="text-[9px] font-bold text-neutral-600 bg-neutral-900 px-2 py-0.5 rounded border border-neutral-800">
+                                {new Date(groupGames.filter(g => !g.isActive)[0].startTime).toLocaleDateString()}
+                            </span>
+                        </div>
+                        <div className="space-y-1">
+                            <div className="text-[10px] font-bold text-green-500 uppercase tracking-widest mb-1 flex items-center gap-1">
+                                <Trophy size={10} /> Biggest Winner
+                            </div>
+                            <div className="text-xl font-black text-white truncate">{groupDashboardStats.lastWinner.name}</div>
+                            <div className="text-2xl font-mono font-black text-green-500">
+                                +{formatCurrency(groupDashboardStats.lastWinner.netProfit)}
+                            </div>
+                        </div>
                     </div>
-                    <Button onClick={() => { setActiveGameId(active.id); setCurrentView(View.ACTIVE_GAME); }} className="w-full">
-                      Resume Game
-                    </Button>
-                  </div>
-                ) : (
-                  <Button size="lg" onClick={() => setIsNewGameModalOpen(true)} icon={<Plus size={20}/>}>
-                    Start New Game
-                  </Button>
                 )}
               </div>
             </div>
 
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                   <span className="text-red-600">♦</span> Recent Games
+              <div className="flex justify-between items-center px-1">
+                 <h2 className="text-sm font-black text-neutral-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                   <HistoryIcon size={14} /> RECENT SESSION HISTORY
                  </h2>
-                 <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.HISTORY)}>View All</Button>
+                 <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.HISTORY)} className="text-[10px] font-black uppercase tracking-widest text-red-500">View All Archive</Button>
               </div>
               <History 
                 games={groupGames.filter(g => !g.isActive).slice(0, 10)} 
@@ -691,21 +782,21 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
               <span className="font-serif text-2xl sm:text-3xl leading-none pb-1">♠</span>
             </div>
             <span className="group-hover:text-white transition-colors flex items-center min-w-0 truncate">
-                <span className="hidden xs:inline">ChipTracker</span>
-                <span className="xs:hidden">CT</span>
+                <span className="hidden xs:inline uppercase tracking-tighter">ChipTracker</span>
+                <span className="xs:hidden uppercase tracking-tighter">CT</span>
                 {currentGroup && <span className="text-neutral-500 font-normal mx-1 sm:mx-2 shrink-0">/</span>}
-                {currentGroup && <span className="text-xs sm:text-sm font-normal text-neutral-300 truncate">{currentGroup.name}</span>}
+                {currentGroup && <span className="text-xs sm:text-sm font-black text-neutral-300 truncate uppercase italic">{currentGroup.name}</span>}
             </span>
           </div>
           
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {selectedGroupId && (
                 <div className="flex items-center gap-0.5 sm:gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.DASHBOARD)} icon={<LayoutDashboard size={18}/>} className="px-2 sm:px-3">
-                    <span className="hidden lg:inline">Dashboard</span>
+                  <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.DASHBOARD)} icon={<LayoutDashboard size={18}/>} className="px-2 sm:px-3 text-[10px] font-black uppercase tracking-widest">
+                    <span className="hidden lg:inline">Table</span>
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.PLAYERS)} icon={<Users size={18}/>} className="px-2 sm:px-3">
-                    <span className="hidden lg:inline">Players</span>
+                  <Button variant="ghost" size="sm" onClick={() => setCurrentView(View.PLAYERS)} icon={<Users size={18}/>} className="px-2 sm:px-3 text-[10px] font-black uppercase tracking-widest">
+                    <span className="hidden lg:inline">Roster</span>
                   </Button>
                 </div>
             )}
@@ -713,8 +804,8 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
             {supabase && session && (
                <div className="pl-1 sm:pl-2 ml-1 sm:ml-2 border-l border-neutral-800 flex items-center gap-1 sm:gap-2">
                   <div className="hidden md:flex flex-col items-end">
-                    <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">Signed in as</span>
-                    <span className="text-xs text-neutral-300 font-medium max-w-[150px] truncate">{session.user.email}</span>
+                    <span className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest leading-none">Signed in as</span>
+                    <span className="text-[11px] text-neutral-300 font-bold max-w-[150px] truncate">{session.user.email}</span>
                   </div>
                   <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-900/20 border border-red-900/50 flex items-center justify-center text-red-500 md:hidden">
                     <User size={14} />
@@ -726,7 +817,7 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
                     icon={<LogOut size={16}/>} 
                     className="text-red-500 hover:text-red-400 hover:bg-red-900/10 px-2 sm:px-3"
                   >
-                    <span className="hidden sm:inline">Log Out</span>
+                    <span className="hidden sm:inline text-[10px] font-black uppercase">Out</span>
                   </Button>
                </div>
             )}
@@ -860,7 +951,7 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
             </div>
             <div className="max-h-[40vh] overflow-y-auto border border-neutral-800 rounded-lg bg-neutral-900">
               <table className="w-full text-left text-sm table-fixed">
-                <thead className="bg-neutral-800 text-neutral-400 sticky top-0 z-10">
+                <thead className="bg-neutral-800 text-neutral-400 sticky top-0_z-10">
                   <tr>
                     <th className="p-3 w-8"></th>
                     <th className="p-3">Player</th>
