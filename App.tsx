@@ -12,7 +12,7 @@ import { PlayerProfile } from './components/PlayerProfile';
 import { GroupSelection } from './components/GroupSelection';
 import { GroupInsights } from './components/GroupInsights';
 import { Button, Modal, Input, Card } from './components/UI';
-import { Plus, LayoutDashboard, Database, LogOut, Loader2, Coins, Banknote, Share2, X, AlertCircle, HelpCircle, Terminal, ShieldAlert, Copy, Check, User, Users } from 'lucide-react'; 
+import { Plus, LayoutDashboard, Database, LogOut, Loader2, Coins, Banknote, Share2, X, AlertCircle, HelpCircle, Terminal, ShieldAlert, Copy, Check, User, Users, TrendingUp } from 'lucide-react'; 
 
 enum View {
   GROUPS,
@@ -47,6 +47,8 @@ export default function App() {
   // Modals State
   const [isNewGameModalOpen, setIsNewGameModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isPulseModalOpen, setIsPulseModalOpen] = useState(false);
+  const [pulseGroupId, setPulseGroupId] = useState<string | null>(null);
   const [sharingGroup, setSharingGroup] = useState<Group | null>(null);
   const [shareEmail, setShareEmail] = useState('');
   const [shareError, setShareError] = useState<string | null>(null);
@@ -132,6 +134,11 @@ export default function App() {
   const viewingGame = games.find(g => g.id === viewingGameId);
   const viewingPlayer = players.find(p => p.id === viewingPlayerId);
 
+  // Pulse data helper
+  const pulseGroup = groups.find(g => g.id === pulseGroupId);
+  const pulseGames = games.filter(g => g.groupId === pulseGroupId);
+  const pulsePlayers = pulseGroup ? players.filter(p => pulseGroup.playerIds.includes(p.id)) : [];
+
   // --- Helpers ---
 
   const copyFixToClipboard = (sql: string) => {
@@ -184,6 +191,11 @@ export default function App() {
     setSelectedGroupId(groupId);
     setActiveGameId(gameId);
     setCurrentView(View.ACTIVE_GAME);
+  };
+
+  const handleShowPulse = (groupId: string) => {
+    setPulseGroupId(groupId);
+    setIsPulseModalOpen(true);
   };
 
   const handleBackToGroups = () => {
@@ -473,6 +485,7 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
                 allGames={games}
                 onSelectGroup={handleSelectGroup} 
                 onResumeGame={handleResumeGame}
+                onShowPulse={handleShowPulse}
                 onCreateGroup={handleCreateGroup} 
                 onDeleteGroup={handleDeleteGroup}
                 onShareGroup={handleOpenShare}
@@ -614,11 +627,18 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
                       {groupPlayers.length} Members • {groupGames.length} Games Played
                     </p>
                   </div>
-                  {currentGroup && canShareCurrent && (
-                    <Button variant="ghost" size="sm" onClick={() => handleOpenShare(currentGroup)} icon={<Share2 size={16}/>}>
-                      Share Group
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {currentGroup && (
+                      <Button variant="ghost" size="sm" onClick={() => handleShowPulse(currentGroup.id)} icon={<TrendingUp size={16}/>}>
+                        Pulse
+                      </Button>
+                    )}
+                    {currentGroup && canShareCurrent && (
+                      <Button variant="ghost" size="sm" onClick={() => handleOpenShare(currentGroup)} icon={<Share2 size={16}/>}>
+                        Share
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 
                 {active ? (
@@ -642,9 +662,6 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
                 )}
               </div>
             </div>
-
-            {/* Injected Group Insights Section */}
-            <GroupInsights groupGames={groupGames} groupPlayers={groupPlayers} />
 
             <div className="space-y-4">
               <div className="flex justify-between items-center">
@@ -721,6 +738,18 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
         {renderContent()}
       </main>
 
+      {/* Group Pulse Modal */}
+      <Modal 
+        isOpen={isPulseModalOpen} 
+        onClose={() => setIsPulseModalOpen(false)} 
+        title={`${pulseGroup?.name || 'Group'} Pulse`}
+        size="xl"
+      >
+        <div className="animate-in fade-in duration-300">
+           <GroupInsights groupGames={pulseGames} groupPlayers={pulsePlayers} />
+        </div>
+      </Modal>
+
       {/* Share Modal */}
       <Modal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} title={`Share "${sharingGroup?.name}"`}>
          <div className="space-y-6">
@@ -737,22 +766,6 @@ CREATE POLICY "Authenticated users can manage players" ON players FOR ALL TO aut
                     </p>
                   </div>
                 </div>
-                
-                {shareError.includes("SECURITY_DENIED") && (
-                   <div className="pt-3 border-t border-red-500/10">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2 text-[10px] font-bold text-red-400 uppercase tracking-widest">
-                           <Terminal size={12} /> SQL Setup Required
-                        </div>
-                        <button onClick={() => copyFixToClipboard(rlsFixSql)} className="text-[10px] bg-red-900/20 text-red-400 px-2 py-0.5 rounded border border-red-900/30">
-                           {copied ? 'Copied' : 'Copy Fix'}
-                        </button>
-                      </div>
-                      <div className="bg-black/40 rounded p-2 text-[10px] font-mono text-neutral-400 select-all border border-red-900/20 overflow-x-auto whitespace-nowrap">
-                         ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
-                      </div>
-                   </div>
-                )}
               </div>
             )}
 

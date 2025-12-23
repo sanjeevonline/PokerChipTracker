@@ -104,8 +104,6 @@ export const api = {
         player_ids: group.playerIds,
         created_at: new Date(group.createdAt).toISOString(),
         owner_id: group.ownerId || user?.id,
-        // Fix: Use group.sharedWithEmails (camelCase) as defined in the Group interface. 
-        // snake_case shared_with_emails is only used for the database payload.
         shared_with_emails: group.sharedWithEmails || []
       };
 
@@ -301,6 +299,48 @@ export const calculateSettlement = (game: GameSession): GameSettlementReport => 
     discrepancy: round(totalChips - totalBuyIn),
     durationMinutes
   };
+};
+
+/**
+ * Minimizes transactions to settle up.
+ * Returns a list of who pays how much to whom.
+ */
+export const calculatePayouts = (report: GameSettlementReport) => {
+  const debtors = report.players
+    .filter(p => p.netProfit < 0)
+    .map(p => ({ ...p, netProfit: Math.abs(p.netProfit) }))
+    .sort((a, b) => b.netProfit - a.netProfit);
+    
+  const creditors = report.players
+    .filter(p => p.netProfit > 0)
+    .sort((a, b) => b.netProfit - a.netProfit);
+
+  const payouts: { from: string; to: string; amount: number }[] = [];
+
+  let dIdx = 0;
+  let cIdx = 0;
+
+  while (dIdx < debtors.length && cIdx < creditors.length) {
+    const debtor = debtors[dIdx];
+    const creditor = creditors[cIdx];
+    
+    const amount = Math.min(debtor.netProfit, creditor.netProfit);
+    if (amount > 0.01) {
+      payouts.push({
+        from: debtor.name,
+        to: creditor.name,
+        amount: round(amount)
+      });
+    }
+
+    debtor.netProfit -= amount;
+    creditor.netProfit -= amount;
+
+    if (debtor.netProfit <= 0.01) dIdx++;
+    if (creditor.netProfit <= 0.01) cIdx++;
+  }
+
+  return payouts;
 };
 
 export const getPlayerStats = (player: Player, games: GameSession[]): PlayerStats => {

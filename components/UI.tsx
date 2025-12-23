@@ -116,15 +116,22 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'md' | 'lg' | 'xl';
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 'md' }) => {
   if (!isOpen) return null;
+
+  const sizeClasses = {
+    md: 'max-w-lg',
+    lg: 'max-w-2xl',
+    xl: 'max-w-4xl'
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl w-full max-w-lg shadow-2xl shadow-red-900/10 transform transition-all scale-100">
-        <div className="flex items-center justify-between p-4 border-b border-neutral-800 bg-neutral-900/50 rounded-t-2xl">
+      <div className={`bg-neutral-950 border border-neutral-800 rounded-2xl w-full ${sizeClasses[size]} shadow-2xl shadow-red-900/10 transform transition-all scale-100 max-h-[90vh] flex flex-col`}>
+        <div className="flex items-center justify-between p-4 border-b border-neutral-800 bg-neutral-900/50 rounded-t-2xl shrink-0">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <span className="text-red-600">♦</span> {title}
           </h2>
@@ -132,7 +139,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
             <X size={20} />
           </button>
         </div>
-        <div className="p-6">
+        <div className="p-6 overflow-y-auto custom-scrollbar">
           {children}
         </div>
       </div>

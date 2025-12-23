@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Group, GameSession, Player } from '../types';
 import { Button, Input, Modal, Card } from './UI';
-import { Plus, Users, ChevronRight, PlayCircle, FolderPlus, Share2, ShieldCheck, Trash2, AlertCircle } from 'lucide-react';
+import { Plus, Users, ChevronRight, PlayCircle, FolderPlus, Share2, ShieldCheck, Trash2, AlertCircle, TrendingUp } from 'lucide-react';
 
 interface GroupSelectionProps {
   groups: Group[];
@@ -14,6 +14,7 @@ interface GroupSelectionProps {
   onCreateGroup: (name: string) => void;
   onDeleteGroup: (groupId: string) => void;
   onShareGroup: (group: Group) => void;
+  onShowPulse: (groupId: string) => void;
   currentUserId?: string;
   currentUserEmail?: string;
 }
@@ -26,6 +27,7 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
   onCreateGroup, 
   onDeleteGroup,
   onShareGroup,
+  onShowPulse,
   currentUserId,
   currentUserEmail
 }) => {
@@ -130,6 +132,13 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
                         </div>
                       </div>
                       <div className="flex gap-1">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); onShowPulse(group.id); }}
+                          className="p-1.5 rounded-lg bg-neutral-950 text-neutral-400 hover:text-white hover:bg-red-600/20 transition-all border border-neutral-800 relative z-20"
+                          title="Group Pulse (Insights)"
+                        >
+                          <TrendingUp size={16} />
+                        </button>
                         {canShare && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); onShareGroup(group); }}

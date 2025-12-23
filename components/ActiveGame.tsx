@@ -234,60 +234,55 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
 
   return (
     <div className="flex flex-col h-full max-h-[calc(100vh-120px)] overflow-hidden space-y-2">
-      {/* Dense Header */}
-      <div className="shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 shadow-md flex flex-col gap-3">
-        {/* Row 1: Title and Settle Controls */}
+      {/* Tight Optimized Header */}
+      <div className="shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 shadow-md flex flex-col gap-2">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-sm font-black text-white leading-none mb-1 uppercase tracking-tight">
+            <h2 className="text-[11px] font-black text-white leading-none mb-1 uppercase tracking-tight">
               {game.endTime ? 'EDIT MODE' : 'TABLE ACTIVE'}
             </h2>
-            <div className="flex items-center gap-2 text-[8px] text-white/50 font-bold uppercase whitespace-nowrap overflow-hidden">
+            <div className="flex items-center gap-1.5 text-[9px] text-white/50 font-bold uppercase whitespace-nowrap overflow-hidden">
               <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
               <span>BANK: <span className="text-green-500">{formatCurrency(report.totalBuyIn)}</span></span>
-              <span className="text-neutral-700">•</span>
-              <span>{activePlayers.length} AT TABLE</span>
             </div>
           </div>
           
           <div className="flex items-center gap-1.5 shrink-0">
-            <Button onClick={() => setModalType('ADD_PLAYER')} variant="secondary" size="sm" className="py-1 text-[9px] h-7 px-3">+ SEAT</Button>
-            <Button onClick={openCountModal} variant="danger" size="sm" className="py-1 text-[9px] h-7 px-3 font-black">
+            <Button onClick={() => setModalType('ADD_PLAYER')} variant="secondary" size="sm" className="py-1 text-[9px] h-7 px-3 uppercase font-black tracking-widest">+ SEAT</Button>
+            <Button onClick={openCountModal} variant="danger" size="sm" className="py-1 text-[9px] h-7 px-3 font-black uppercase tracking-widest">
                {game.endTime ? 'SAVE' : 'SETTLE'}
             </Button>
           </div>
         </div>
 
-        {/* Row 2: Prominent Transactional Controls */}
-        <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-lg border border-neutral-800/50">
+        <div className="grid grid-cols-3 gap-1.5 bg-black/40 p-1 rounded-lg border border-neutral-800/50">
           <button 
             onClick={() => openPlayerAction('BUY_IN')} 
-            className="flex-1 py-2 px-1 rounded-md bg-green-600/10 text-green-400 hover:bg-green-600 hover:text-white transition-all text-[10px] font-black border border-green-600/20 flex flex-col items-center justify-center gap-1 shadow-sm"
+            className="flex-1 py-1.5 px-1 rounded-md bg-green-600/10 text-green-400 hover:bg-green-600 hover:text-white transition-all text-[10px] font-black border border-green-600/20 flex flex-col items-center justify-center gap-0.5 shadow-sm"
           >
-            <Plus size={16} />
+            <Plus size={14} />
             <span>BUY IN</span>
           </button>
           <button 
             onClick={() => openPlayerAction('TRANSFER')} 
-            className="flex-1 py-2 px-1 rounded-md bg-blue-600/10 text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-[10px] font-black border border-blue-600/20 flex flex-col items-center justify-center gap-1 shadow-sm"
+            className="flex-1 py-1.5 px-1 rounded-md bg-blue-600/10 text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-[10px] font-black border border-blue-600/20 flex flex-col items-center justify-center gap-0.5 shadow-sm"
           >
-            <ArrowRightLeft size={16} />
+            <ArrowRightLeft size={14} />
             <span>LOAN</span>
           </button>
           <button 
             onClick={() => openPlayerAction('CASH_OUT')} 
             disabled={isCashoutDisabled}
-            title={isCashoutDisabled ? "Minimum 3 players required for cash out" : "Cash out player"}
-            className={`flex-1 py-2 px-1 rounded-md text-[10px] font-black border transition-all flex flex-col items-center justify-center gap-1 shadow-sm ${isCashoutDisabled ? 'bg-neutral-800 text-neutral-600 border-neutral-700 cursor-not-allowed' : 'bg-yellow-600/10 text-yellow-400 hover:bg-yellow-600 hover:text-white border-yellow-600/20'}`}
+            className={`flex-1 py-1.5 px-1 rounded-md text-[10px] font-black border transition-all flex flex-col items-center justify-center gap-0.5 shadow-sm ${isCashoutDisabled ? 'bg-neutral-800 text-neutral-600 border-neutral-700 cursor-not-allowed' : 'bg-yellow-600/10 text-yellow-400 hover:bg-yellow-600 hover:text-white border-yellow-600/20'}`}
           >
-            <LogOut size={16} />
-            <span>CASH OUT</span>
+            <LogOut size={14} />
+            <span>OUT</span>
           </button>
         </div>
       </div>
 
-      {/* Super Compact Optimized Dense Player Grid */}
-      <div className="flex-1 overflow-y-auto grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 pr-1 custom-scrollbar">
+      {/* Compact Readable Player Grid - Optimized 50/50 Layout */}
+      <div className="flex-1 overflow-y-auto grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 pr-1 custom-scrollbar pb-1">
         {activePlayers.map(player => {
           const stats = report.players.find(p => p.playerId === player.id);
           if (!stats) return null;
@@ -299,62 +294,64 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
             <div 
               key={player.id} 
               onClick={() => setSelectedPlayerId(player.id)}
-              className={`relative group transition-all rounded-lg border flex flex-col cursor-pointer h-[64px] overflow-hidden ${selectedPlayerId === player.id ? 'bg-neutral-800 border-red-600 ring-1 ring-red-600/20' : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700'}`}
+              className={`relative group transition-all rounded-lg border flex flex-col cursor-pointer h-[82px] overflow-hidden ${selectedPlayerId === player.id ? 'bg-neutral-800 border-red-600 ring-1 ring-red-600/20 shadow-md' : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700 shadow-sm'}`}
             >
-              <div className="p-1.5 flex flex-col h-full gap-1">
+              <div className="p-1.5 flex flex-col h-full gap-0.5">
                 <div className="flex items-start justify-between min-w-0">
-                  <h3 className={`text-[10px] font-black truncate leading-tight w-full ${selectedPlayerId === player.id ? 'text-white' : 'text-neutral-200'}`}>
+                  <h3 className={`text-[10px] font-black truncate leading-tight w-full tracking-tight ${selectedPlayerId === player.id ? 'text-white' : 'text-neutral-400'}`}>
                     {player.name.toUpperCase()}
                   </h3>
                 </div>
 
                 <div className="flex items-center gap-1 flex-1">
-                  {/* Left Half: Stack */}
-                  <div className="flex-[1.2] flex flex-col items-center justify-center h-full bg-black/40 rounded border border-neutral-800/40 px-1">
-                    <div className="flex flex-wrap items-center justify-center gap-1 text-center">
-                      <span className="text-[11px] font-mono font-black text-white leading-none">
-                        {chipsCount !== null ? chipsCount.toLocaleString() : formatCurrency(stats.netInvested)}
+                  {/* Left Half: Total Chips & Value */}
+                  <div className="flex-1 flex flex-col items-center justify-center h-full bg-black/30 rounded border border-neutral-800/20 px-0.5 overflow-hidden">
+                    <span className="text-sm font-mono font-black text-white leading-none tracking-tighter">
+                      {chipsCount !== null ? chipsCount.toLocaleString() : formatCurrency(stats.netInvested)}
+                    </span>
+                    {chipsCount !== null && (
+                      <span className="text-[9px] text-white/70 font-mono font-bold leading-none mt-1 truncate w-full text-center">
+                        {formatCurrency(stats.netInvested)}
                       </span>
-                      {chipsCount !== null && (
-                        <span className="text-[7px] text-white/50 font-mono font-bold leading-none truncate">
-                          {formatCurrency(stats.netInvested)}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
 
-                  {/* Right Half: Loans */}
-                  <div className="flex-1 flex flex-col justify-around h-full text-[7px] font-black uppercase tracking-tighter pl-1">
-                    <div className="flex items-center justify-between gap-0.5 text-green-500 border-b border-neutral-800/20">
-                      <span>LENT</span>
-                      <span className="font-mono">{stats.transfersOut > 0 ? (game.chipValue ? Math.round(stats.transfersOut / game.chipValue) : formatCurrency(stats.transfersOut)) : '0'}</span>
+                  {/* Right Half: Full LENT / OWES Labels */}
+                  <div className="flex-1 flex flex-col justify-around h-full tracking-tighter pl-1">
+                    <div className="flex items-center justify-between gap-1 text-green-500 border-b border-neutral-800/30 pb-0.5">
+                      <span className="text-[9px] font-black uppercase opacity-60">LENT</span>
+                      <span className="text-[11px] font-mono font-black truncate">
+                        {stats.transfersOut > 0 ? (game.chipValue ? Math.round(stats.transfersOut / game.chipValue) : formatCurrency(stats.transfersOut)) : '0'}
+                      </span>
                     </div>
-                    <div className="flex items-center justify-between gap-0.5 text-red-500">
-                      <span>OWES</span>
-                      <span className="font-mono">{stats.transfersIn > 0 ? (game.chipValue ? Math.round(stats.transfersIn / game.chipValue) : formatCurrency(stats.transfersIn)) : '0'}</span>
+                    <div className="flex items-center justify-between gap-1 text-red-500 pt-0.5">
+                      <span className="text-[9px] font-black uppercase opacity-60">OWES</span>
+                      <span className="text-[11px] font-mono font-black truncate">
+                        {stats.transfersIn > 0 ? (game.chipValue ? Math.round(stats.transfersIn / game.chipValue) : formatCurrency(stats.transfersIn)) : '0'}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
               
               {selectedPlayerId === player.id && (
-                <div className="absolute bottom-0 left-0 w-full h-[1.5px] bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.5)]"></div>
+                <div className="absolute bottom-0 left-0 w-full h-[1.5px] bg-red-600"></div>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Super Compact Ledger for Active View */}
-      <div className="shrink-0 h-24 bg-neutral-900/50 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
+      {/* Ledger View */}
+      <div className="shrink-0 h-28 bg-neutral-900/50 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
         <div className="px-3 py-1 bg-neutral-800/50 border-b border-neutral-800 flex justify-between items-center">
-           <span className="text-[8px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1.5">
+           <span className="text-[9px] font-black text-white/30 uppercase tracking-widest flex items-center gap-1.5">
              <History size={10} /> RECENT LOGS
            </span>
         </div>
         <div className="flex-1 overflow-y-auto p-1 space-y-1 custom-scrollbar">
           {game.transactions.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-neutral-600 text-[9px] italic">Ready...</div>
+            <div className="h-full flex items-center justify-center text-neutral-600 text-[10px] italic">Table is quiet...</div>
           ) : (
             game.transactions.slice(0, 15).map(tx => {
               const fromPlayer = game.players.find(p => p.id === tx.fromId);
@@ -362,18 +359,18 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
               const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
               const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
               let colorClass = 'text-blue-400';
-              if (tx.type === TransactionType.BUY_IN) colorClass = 'text-green-400';
-              else if (tx.type === TransactionType.CASH_OUT) colorClass = 'text-yellow-400';
+              if (tx.type === TransactionType.BUY_IN) colorClass = 'text-green-500';
+              else if (tx.type === TransactionType.CASH_OUT) colorClass = 'text-yellow-500';
 
               return (
-                <div key={tx.id} className="flex items-center justify-between px-2 py-0.5 bg-black/20 rounded border border-neutral-800/30 text-[8px] font-bold">
+                <div key={tx.id} className="flex items-center justify-between px-2 py-0.5 bg-black/20 rounded border border-neutral-800/30 text-[9px] font-bold">
                    <div className="flex items-center gap-2">
-                      <span className={`${colorClass} w-5 uppercase text-[7px]`}>{tx.type === TransactionType.BUY_IN ? 'IN' : tx.type === TransactionType.CASH_OUT ? 'OUT' : 'LOAN'}</span>
-                      <span className="text-neutral-100 truncate max-w-[120px]">
+                      <span className={`${colorClass} w-6 uppercase text-[8px] font-black`}>{tx.type === TransactionType.BUY_IN ? 'IN' : tx.type === TransactionType.CASH_OUT ? 'OUT' : 'LOAN'}</span>
+                      <span className="text-neutral-300 truncate max-w-[120px] uppercase">
                         {tx.type === TransactionType.BUY_IN ? `${toName}` : tx.type === TransactionType.CASH_OUT ? `${fromName}` : `${fromName} ➔ ${toName}`}
                       </span>
                    </div>
-                   <div className="text-white font-mono">
+                   <div className="text-white font-mono font-black">
                       {game.chipValue ? (tx.amount / game.chipValue).toLocaleString() : formatCurrency(tx.amount)}
                    </div>
                 </div>
@@ -388,7 +385,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
         <div className="space-y-4">
           <Select label="Player" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
           <Input label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
-          <Button className="w-full" onClick={handleTransaction}>Confirm Buy In</Button>
+          <Button className="w-full py-2.5" onClick={handleTransaction}>Confirm Buy In</Button>
         </div>
       </Modal>
 
@@ -396,7 +393,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
         <div className="space-y-4">
           <Select label="Player" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
           <Input label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
-          <Button className="w-full" variant="secondary" onClick={handleTransaction}>Confirm Cash Out</Button>
+          <Button className="w-full py-2.5" variant="secondary" onClick={handleTransaction}>Confirm Cash Out</Button>
         </div>
       </Modal>
 
@@ -407,7 +404,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
             <Select label="To" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={targetPlayerId} onChange={(e) => setTargetPlayerId(e.target.value)} />
           </div>
           <Input label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
-          <Button className="w-full" onClick={handleTransaction} disabled={selectedPlayerId === targetPlayerId}>Confirm Loan</Button>
+          <Button className="w-full py-2.5" onClick={handleTransaction} disabled={selectedPlayerId === targetPlayerId}>Confirm Loan</Button>
         </div>
       </Modal>
 
@@ -427,7 +424,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
              <Input label="Name" placeholder="Enter name" value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} autoFocus />
            )}
            <Input label={isMultiDenom ? "Buy-In ($)" : "Buy-In (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} className={noArrowsClass} />
-           <Button className="w-full" onClick={handleAddPlayer} disabled={(newPlayerMode === 'EXISTING' && !playerToAddId) || (newPlayerMode === 'NEW' && !newPlayerName.trim())}>Seat Player</Button>
+           <Button className="w-full py-2.5" onClick={handleAddPlayer} disabled={(newPlayerMode === 'EXISTING' && !playerToAddId) || (newPlayerMode === 'NEW' && !newPlayerName.trim())}>Seat Player</Button>
         </div>
       </Modal>
 
@@ -482,7 +479,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
           <div className="pt-4 border-t border-neutral-800 flex gap-3 sticky bottom-0 bg-neutral-950 py-2">
              <Button className="flex-1" variant="secondary" onClick={handleCancelFinish}>Cancel</Button>
              <Button className="flex-[2]" variant={showMismatchWarning && discrepancy !== 0 ? 'secondary' : 'danger'} onClick={handleFinishAttempt}>
-                {showMismatchWarning && discrepancy !== 0 ? 'FORCE SETTLE' : 'COMPLETE SESSION'}
+                {showMismatchWarning && discrepancy !== 0 ? 'FORCE SETTLE' : 'COMPLETE'}
              </Button>
           </div>
         </div>
