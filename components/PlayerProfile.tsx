@@ -24,28 +24,15 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, games, onB
     };
   });
 
-  const renderAvatar = () => {
-    if (player.avatar && player.avatar.startsWith('data:')) {
-      return <img src={player.avatar} alt="" className="w-16 h-16 rounded-full object-cover border-2 border-neutral-700 shadow-xl" />;
-    }
-    const bgColor = player.avatar || '#262626';
-    return (
-      <div 
-        className="w-16 h-16 rounded-full flex items-center justify-center font-bold text-white border-2 border-neutral-700 shadow-xl text-2xl"
-        style={{ backgroundColor: bgColor }}
-      >
-        {player.name.charAt(0).toUpperCase()}
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-8 animate-in slide-in-from-right-4 duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center gap-6 justify-between">
         <div className="flex items-center gap-4">
           <Button onClick={onBack} variant="secondary" icon={<ArrowLeft size={18}/>}>Back to Roster</Button>
           <div className="flex items-center gap-4">
-             {renderAvatar()}
+             <div className="w-16 h-16 rounded-full flex items-center justify-center font-bold text-white border-2 border-neutral-700 bg-neutral-800 text-2xl shadow-xl">
+               {player.name.charAt(0).toUpperCase()}
+             </div>
              <div>
                 <h2 className="text-3xl font-bold text-white tracking-tight">{player.name}</h2>
                 <div className="flex items-center gap-2 mt-1">
@@ -81,18 +68,14 @@ export const PlayerProfile: React.FC<PlayerProfileProps> = ({ player, games, onB
            <div className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
              <Trophy size={10} className="text-green-500"/> Biggest Win
            </div>
-           <div className="text-2xl font-bold text-green-500 font-mono">
-             +{formatCurrency(stats.biggestWin)}
-           </div>
+           <div className="text-2xl font-bold text-green-500 font-mono">+{formatCurrency(stats.biggestWin)}</div>
         </Card>
 
         <Card className="bg-neutral-900/80 border-neutral-800 shadow-lg group hover:border-red-900/50 transition-colors">
            <div className="text-neutral-500 text-[10px] uppercase font-bold tracking-widest mb-1 flex items-center gap-1">
              <TrendingDown size={10} className="text-red-500"/> Biggest Loss
            </div>
-           <div className="text-2xl font-bold text-red-500 font-mono">
-             {formatCurrency(stats.biggestLoss)}
-           </div>
+           <div className="text-2xl font-bold text-red-500 font-mono">{formatCurrency(stats.biggestLoss)}</div>
         </Card>
       </div>
 

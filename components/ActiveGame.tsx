@@ -30,6 +30,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
   const [newPlayerMode, setNewPlayerMode] = useState<'EXISTING' | 'NEW'>('EXISTING');
   const [playerToAddId, setPlayerToAddId] = useState<string>('');
   const [newPlayerName, setNewPlayerName] = useState<string>('');
+  const [isCreating, setIsCreating] = useState(false);
   
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [showMismatchWarning, setShowMismatchWarning] = useState(false);
@@ -45,6 +46,10 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
   
   const isMultiDenom = game.chipValue === undefined || game.chipValue === null;
   const noArrowsClass = "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+
+  const isDuplicateName = allPlayers.some(
+    p => p.name.toLowerCase() === newPlayerName.trim().toLowerCase()
+  );
 
   const totalRawCount: number = (Object.values(counts) as string[]).reduce((sum: number, val: string) => {
     const num = parseFloat(val);
@@ -115,8 +120,15 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
     if (newPlayerMode === 'EXISTING') {
       player = allPlayers.find(p => p.id === playerToAddId);
     } else {
-      if (!newPlayerName.trim()) return;
-      player = await onCreatePlayer(newPlayerName);
+      if (!newPlayerName.trim() || isDuplicateName || isCreating) return;
+      setIsCreating(true);
+      try {
+        player = await onCreatePlayer(newPlayerName);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsCreating(false);
+      }
     }
 
     if (!player) return;
@@ -196,6 +208,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
     setAmount('');
     setNewPlayerName('');
     setShowMismatchWarning(false);
+    setIsCreating(false);
   };
 
   const openCountModal = () => {
@@ -421,10 +434,17 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
                 <p className="text-center text-neutral-500 py-2 text-xs">No available group members.</p>
              )
            ) : (
-             <Input label="Name" placeholder="Enter name" value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} autoFocus />
+             <Input 
+               label="Name" 
+               placeholder="Enter name" 
+               value={newPlayerName} 
+               onChange={(e) => setNewPlayerName(e.target.value)} 
+               autoFocus 
+               error={isDuplicateName ? "This player already exists in the group roster." : undefined}
+             />
            )}
            <Input label={isMultiDenom ? "Buy-In ($)" : "Buy-In (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} className={noArrowsClass} />
-           <Button className="w-full py-2.5" onClick={handleAddPlayer} disabled={(newPlayerMode === 'EXISTING' && !playerToAddId) || (newPlayerMode === 'NEW' && !newPlayerName.trim())}>Seat Player</Button>
+           <Button className="w-full py-2.5" onClick={handleAddPlayer} disabled={(newPlayerMode === 'EXISTING' && !playerToAddId) || (newPlayerMode === 'NEW' && (!newPlayerName.trim() || isDuplicateName || isCreating))}>Seat Player</Button>
         </div>
       </Modal>
 

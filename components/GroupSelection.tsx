@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Group, GameSession, Player } from '../types';
 import { Button, Input, Modal, Card } from './UI';
-import { Plus, Users, ChevronRight, PlayCircle, FolderPlus, Share2, ShieldCheck, Trash2, AlertCircle, TrendingUp } from 'lucide-react';
+import { Plus, Users, ChevronRight, PlayCircle, FolderPlus, Share2, ShieldCheck, Trash2, AlertCircle, TrendingUp, Loader2 } from 'lucide-react';
 
 interface GroupSelectionProps {
   groups: Group[];
@@ -11,7 +11,7 @@ interface GroupSelectionProps {
   players: Player[];
   onSelectGroup: (groupId: string) => void;
   onResumeGame: (groupId: string, gameId: string) => void;
-  onCreateGroup: (name: string) => void;
+  onCreateGroup: (name: string) => Promise<void>;
   onDeleteGroup: (groupId: string) => void;
   onShareGroup: (group: Group) => void;
   onShowPulse: (groupId: string) => void;
@@ -33,13 +33,33 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const [groupToDelete, setGroupToDelete] = useState<Group | null>(null);
 
-  const handleCreate = () => {
-    if (!newGroupName.trim()) return;
-    onCreateGroup(newGroupName);
-    setNewGroupName('');
-    setIsModalOpen(false);
+  const isDuplicateName = groups.some(
+    g => g.name.toLowerCase() === newGroupName.trim().toLowerCase()
+  );
+
+  const handleCreate = async () => {
+    if (!newGroupName.trim() || isCreating) return;
+    
+    if (isDuplicateName) {
+      setLocalError(`A group named "${newGroupName.trim()}" already exists.`);
+      return;
+    }
+
+    setIsCreating(true);
+    setLocalError(null);
+    try {
+      await onCreateGroup(newGroupName);
+      setNewGroupName('');
+      setIsModalOpen(false);
+    } catch (e: any) {
+      setLocalError(e.message || "Failed to create group.");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const confirmDelete = () => {
@@ -208,7 +228,7 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
 
       <Modal 
         isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => { setIsModalOpen(false); setLocalError(null); setNewGroupName(''); }}
         title="Create New Group"
       >
         <div className="space-y-4">
@@ -216,11 +236,18 @@ export const GroupSelection: React.FC<GroupSelectionProps> = ({
             label="Group Name" 
             placeholder="e.g. Friday Night Poker" 
             value={newGroupName}
-            onChange={(e) => setNewGroupName(e.target.value)}
+            onChange={(e) => { setNewGroupName(e.target.value); if (localError) setLocalError(null); }}
             autoFocus
+            error={localError || undefined}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
           />
-          <Button className="w-full" onClick={handleCreate} disabled={!newGroupName.trim()}>
-            Create Group
+          <Button 
+            className="w-full" 
+            onClick={handleCreate} 
+            disabled={!newGroupName.trim() || isCreating}
+            icon={isCreating ? <Loader2 size={18} className="animate-spin" /> : undefined}
+          >
+            {isCreating ? 'Creating...' : 'Create Group'}
           </Button>
         </div>
       </Modal>

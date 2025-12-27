@@ -20,7 +20,11 @@ export const api = {
         .order('name');
       
       if (!error && data) {
-        return data as Player[];
+        return data.map((d: any) => ({
+          id: d.id,
+          name: d.name,
+          groupId: d.group_id
+        })) as Player[];
       }
       if (error) console.error("Supabase error fetching players:", error.message || JSON.stringify(error));
     }
@@ -40,20 +44,30 @@ export const api = {
   /**
    * Create a new player
    */
-  savePlayer: async (player: Player): Promise<void> => {
+  savePlayer: async (player: Player, groupId: string): Promise<void> => {
     if (supabase) {
-      const { error } = await supabase.from('players').insert(player);
+      const payload = {
+        id: player.id,
+        name: player.name,
+        group_id: groupId // This fixes the null value constraint error
+      };
+
+      const { error } = await supabase.from('players').insert(payload);
       if (error) {
         console.error("Supabase error saving player:", error.message);
         if (error.code === '42501') {
           throw new Error("RLS Policy Error: You don't have permission to add players. Please run the setup SQL.");
         }
+        if (error.code === '23505') {
+          throw new Error(`A player named "${player.name}" already exists.`);
+        }
+        throw new Error(error.message);
       }
       return;
     }
 
     const players = await api.fetchPlayers();
-    const updated = [...players, player].sort((a, b) => a.name.localeCompare(b.name));
+    const updated = [...players, { ...player, groupId }].sort((a, b) => a.name.localeCompare(b.name));
     localStorage.setItem(STORAGE_KEY_PLAYERS, JSON.stringify(updated));
   },
 
@@ -95,7 +109,6 @@ export const api = {
    */
   saveGroup: async (group: Group): Promise<void> => {
     if (supabase) {
-      // Robust session check to ensure we have a valid owner_id
       const { data: { user } } = await (supabase.auth as any).getUser();
       
       const payload = {
@@ -112,9 +125,12 @@ export const api = {
       if (error) {
         console.error("Supabase error saving group:", error.message, error.code);
         if (error.code === '42501') {
-           throw new Error(`SECURITY_DENIED: Your Supabase Row Level Security (RLS) is blocking this update. You must configure policies for the 'groups' table to allow INSERT and UPDATE for owners and collaborators.`);
+           throw new Error(`SECURITY_DENIED: Your Supabase Row Level Security (RLS) is blocking this update.`);
         }
-        throw error;
+        if (error.code === '23505') {
+          throw new Error(`A group named "${group.name}" already exists. Please choose a unique name.`);
+        }
+        throw new Error(error.message);
       }
       return;
     }
@@ -138,10 +154,7 @@ export const api = {
       const { error } = await supabase.from('groups').delete().eq('id', groupId);
       if (error) {
         console.error("Supabase error deleting group:", error.message);
-        if (error.code === '42501') {
-           throw new Error("SECURITY_DENIED: RLS policy is blocking group deletion.");
-        }
-        throw error;
+        throw new Error(error.message);
       }
       return;
     }
@@ -204,9 +217,7 @@ export const api = {
         
       if (error) {
         console.error("Supabase error saving game:", error.message);
-        if (error.code === '42501') {
-           throw new Error("SECURITY_DENIED: RLS policy is blocking 'games' table updates.");
-        }
+        throw new Error(error.message);
       }
       return;
     }
@@ -235,17 +246,11 @@ export const api = {
         .eq('email', email.toLowerCase().trim())
         .maybeSingle();
 
-      if (error) {
-        if (error.code === '42P01') {
-          throw new Error("TABLE_MISSING: The 'profiles' table does not exist. Please run the setup SQL.");
-        }
-        throw error;
-      }
-
+      if (error) throw error;
       return !!data;
     } catch (err: any) {
       console.error("User lookup failed:", err.message);
-      throw err;
+      throw new Error(err.message);
     }
   }
 };
@@ -301,10 +306,6 @@ export const calculateSettlement = (game: GameSession): GameSettlementReport => 
   };
 };
 
-/**
- * Minimizes transactions to settle up.
- * Returns a list of who pays how much to whom.
- */
 export const calculatePayouts = (report: GameSettlementReport) => {
   const debtors = report.players
     .filter(p => p.netProfit < 0)

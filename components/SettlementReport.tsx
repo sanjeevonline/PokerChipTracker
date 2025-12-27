@@ -3,8 +3,7 @@ import React, { useMemo } from 'react';
 import { GameSession, TransactionType, Player } from '../types';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
 import { Button, Card } from './UI';
-// Added missing LogOut import from lucide-react
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, PiggyBank, HandCoins, LogOut } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, LogOut } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 
 interface SettlementReportProps {
@@ -22,23 +21,6 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
   }));
 
   const sortedTransactions = [...game.transactions].sort((a, b) => b.timestamp - a.timestamp);
-
-  const renderAvatar = (playerId: string) => {
-    const player = game.players.find(p => p.id === playerId);
-    if (!player) return null;
-    if (player.avatar && player.avatar.startsWith('data:')) {
-      return <img src={player.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-neutral-800" />;
-    }
-    const bgColor = player.avatar || '#262626';
-    return (
-      <div 
-        className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white border border-neutral-800 text-sm shadow-inner"
-        style={{ backgroundColor: bgColor }}
-      >
-        {player.name.charAt(0).toUpperCase()}
-      </div>
-    );
-  };
 
   const isFixedValue = typeof game.chipValue === 'number';
   const chipVal = game.chipValue || 1;
@@ -114,17 +96,16 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
            {report.players.map(p => {
              const isWinner = p.netProfit > 0;
              const isLoser = p.netProfit < 0;
-             
              return (
                <Card key={p.playerId} className={`relative overflow-hidden group border transition-all flex flex-col h-full p-4 ${isWinner ? 'border-green-900/40 hover:border-green-500/50' : isLoser ? 'border-red-900/40 hover:border-red-500/50' : 'border-neutral-800'}`}>
-                  {/* Decorative corner icon */}
                   <div className={`absolute top-0 right-0 p-1.5 rounded-bl-lg ${isWinner ? 'bg-green-500/10 text-green-500' : isLoser ? 'bg-red-500/10 text-red-500' : 'bg-neutral-800 text-neutral-500'}`}>
                     {isWinner ? <TrendingUp size={12} /> : isLoser ? <TrendingDown size={12} /> : <div className="w-3 h-3" />}
                   </div>
-
                   <div className="flex justify-between items-start gap-3 mb-4 min-w-0">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      {renderAvatar(p.playerId)}
+                      <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white border border-neutral-800 bg-neutral-800 text-sm shadow-inner">
+                        {p.name.charAt(0).toUpperCase()}
+                      </div>
                       <div className="min-w-0">
                         <h4 className="text-sm font-bold text-white truncate pr-1" title={p.name}>{p.name}</h4>
                         <div className={`text-[9px] font-bold uppercase tracking-wider ${isWinner ? 'text-green-500' : isLoser ? 'text-red-500' : 'text-neutral-500'}`}>
@@ -136,35 +117,23 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                        <div className={`text-lg font-mono font-black leading-tight ${isWinner ? 'text-green-500' : isLoser ? 'text-red-500' : 'text-white'}`}>
                           {isWinner ? '+' : ''}{formatCurrency(p.netProfit)}
                        </div>
-                       {isFixedValue && (
-                          <div className={`text-[9px] font-mono leading-none mt-0.5 ${isWinner ? 'text-green-600' : isLoser ? 'text-red-600' : 'text-neutral-500'}`}>
-                             {isWinner ? '+' : ''}{Math.round(p.netProfit / chipVal).toLocaleString()} chips
-                          </div>
-                       )}
                     </div>
                   </div>
-
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-3 border-t border-neutral-800/50 text-[10px] mt-auto">
                     <div className="space-y-2">
                        <div>
                           <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Bank Buy-In</span>
-                          <span className="text-neutral-300 font-mono font-medium block truncate">
-                            {isFixedValue ? `${Math.round(p.totalBuyIn / chipVal).toLocaleString()} units` : formatCurrency(p.totalBuyIn)}
-                          </span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate">{isFixedValue ? `${Math.round(p.totalBuyIn / chipVal).toLocaleString()} units` : formatCurrency(p.totalBuyIn)}</span>
                        </div>
                        <div>
                           <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Net Invested</span>
-                          <span className="text-neutral-300 font-mono font-medium block truncate">
-                            {isFixedValue ? `${Math.round(p.netInvested / chipVal).toLocaleString()} units` : formatCurrency(p.netInvested)}
-                          </span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate">{isFixedValue ? `${Math.round(p.netInvested / chipVal).toLocaleString()} units` : formatCurrency(p.netInvested)}</span>
                        </div>
                     </div>
                     <div className="space-y-2">
                        <div>
                           <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Final Chips</span>
-                          <span className="text-neutral-300 font-mono font-medium block truncate">
-                             {isFixedValue ? `${Math.round(p.finalChips / chipVal).toLocaleString()} units` : formatCurrency(p.finalChips)}
-                          </span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate">{isFixedValue ? `${Math.round(p.finalChips / chipVal).toLocaleString()} units` : formatCurrency(p.finalChips)}</span>
                        </div>
                        <div>
                           <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Loans</span>
@@ -195,7 +164,6 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
               const toPlayer = game.players.find(p => p.id === tx.toId);
               const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
               const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
-              
               return (
                 <div key={tx.id} className="flex items-center justify-between p-3 bg-neutral-900/30 rounded-xl border border-neutral-800/40">
                    <div className="flex items-center gap-3">
@@ -204,11 +172,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                       </div>
                       <div>
                         <div className="text-xs font-bold text-neutral-200">
-                          {tx.type === TransactionType.BUY_IN
-                            ? `${toName} bought in` 
-                            : tx.type === TransactionType.CASH_OUT
-                              ? `${fromName} cashed out`
-                              : `${fromName} sent to ${toName}`}
+                          {tx.type === TransactionType.BUY_IN ? `${toName} bought in` : tx.type === TransactionType.CASH_OUT ? `${fromName} cashed out` : `${fromName} sent to ${toName}`}
                         </div>
                         <div className="text-[10px] text-neutral-600 uppercase tracking-widest font-bold">
                           {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -216,9 +180,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                       </div>
                    </div>
                    <div className="text-right">
-                      <div className="font-mono font-bold text-sm text-neutral-300">
-                        {isFixedValue ? `${Math.round(tx.amount / chipVal).toLocaleString()} chips` : formatCurrency(tx.amount)}
-                      </div>
+                      <div className="font-mono font-bold text-sm text-neutral-300">{isFixedValue ? `${Math.round(tx.amount / chipVal).toLocaleString()} chips` : formatCurrency(tx.amount)}</div>
                       {isFixedValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
                    </div>
                 </div>

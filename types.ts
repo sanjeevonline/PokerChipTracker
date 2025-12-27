@@ -2,7 +2,7 @@
 export interface Player {
   id: string;
   name: string;
-  avatar?: string; // Hex color or data URL/URL
+  groupId?: string; // Links player directly to a group for DB constraints
 }
 
 export interface Group {
