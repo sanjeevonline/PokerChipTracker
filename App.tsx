@@ -238,7 +238,23 @@ CREATE POLICY "Users can manage players" ON players FOR ALL TO authenticated USI
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 lg:p-8">{renderContent()}</main>
       <Modal isOpen={isPulseModalOpen} onClose={() => setIsPulseModalOpen(false)} title={`${pulseGroup?.name || 'Group'} Pulse`} size="xl"><GroupInsights groupGames={pulseGames} groupPlayers={pulsePlayers} /></Modal>
       <ShareGroupModal isOpen={isShareModalOpen} onClose={() => setIsShareModalOpen(false)} group={sharingGroup} session={session} onGroupUpdated={updated => setGroups(prev => prev.map(g => g.id === updated.id ? updated : g))} />
-      <NewGameModal isOpen={isNewGameModalOpen} onClose={() => setIsNewGameModalOpen(false)} currentGroup={currentGroup} groupPlayers={groupPlayers} onCreatePlayer={createPlayerInCurrentGroup} onStartGame={game => { setGames([game, ...games]); setActiveGameId(game.id); setCurrentView(View.ACTIVE_GAME); }} />
+      <NewGameModal 
+        isOpen={isNewGameModalOpen} 
+        onClose={() => setIsNewGameModalOpen(false)} 
+        currentGroup={currentGroup} 
+        groupPlayers={groupPlayers} 
+        onCreatePlayer={createPlayerInCurrentGroup} 
+        onStartGame={async game => { 
+          try {
+            setGames([game, ...games]); 
+            setActiveGameId(game.id); 
+            setCurrentView(View.ACTIVE_GAME); 
+            await api.saveGame(game);
+          } catch (e: any) {
+            setGlobalError(e.message || String(e));
+          }
+        }} 
+      />
     </div>
   );
 }
