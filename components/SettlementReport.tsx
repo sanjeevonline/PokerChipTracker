@@ -3,8 +3,9 @@ import React, { useMemo, useState } from 'react';
 import { GameSession, TransactionType, Player } from '../types';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
 import { Button, Card, Modal } from './UI';
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, LogOut, Award, Zap, Landmark, Repeat, Maximize2 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
+// Added missing Zap import to the lucide-react import list
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, LogOut, Landmark, Repeat, Maximize2, Coins, Zap } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 
 interface SettlementReportProps {
   game: GameSession;
@@ -16,6 +17,11 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
   const [isLedgerExpanded, setIsLedgerExpanded] = useState(false);
   const report = useMemo(() => calculateSettlement(game), [game]);
   
+  // Calculate total volume to be settled (sum of all positive profits)
+  const totalSettlementVolume = useMemo(() => {
+    return report.players.reduce((sum, p) => p.netProfit > 0 ? sum + p.netProfit : sum, 0);
+  }, [report]);
+
   // Ledger-based highlights analysis
   const highlights = useMemo(() => {
     const tx = game.transactions;
@@ -164,33 +170,22 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-         <Card className="flex flex-col items-center justify-center text-center py-6 bg-gradient-to-br from-neutral-900 to-black border-neutral-800 shadow-xl">
-            <div className="text-neutral-500 uppercase text-[10px] font-bold tracking-[0.2em] mb-2">Total Buy-In</div>
-            <div className="text-3xl font-bold text-white font-mono">{formatCurrency(report.totalBuyIn)}</div>
-         </Card>
-         <Card className="flex flex-col items-center justify-center text-center py-6 bg-gradient-to-br from-neutral-900 to-black border-neutral-800 shadow-xl">
-            <div className="text-neutral-500 uppercase text-[10px] font-bold tracking-[0.2em] mb-2">Total Stack Count</div>
-            <div className="text-3xl font-bold text-green-500 font-mono">
-              {isFixedValue ? `${Math.round(report.totalChips / chipVal).toLocaleString()} chips` : formatCurrency(report.totalChips)}
-            </div>
-            {isFixedValue && <div className="text-xs text-neutral-500 font-mono mt-1">{formatCurrency(report.totalChips)}</div>}
-         </Card>
-         <Card className={`flex flex-col items-center justify-center text-center py-6 shadow-xl ${report.discrepancy !== 0 ? 'bg-red-950/20 border-red-900/40' : 'bg-gradient-to-br from-neutral-900 to-black border-neutral-800'}`}>
-            <div className="text-neutral-500 uppercase text-[10px] font-bold tracking-[0.2em] mb-2 flex items-center gap-2">
-               {report.discrepancy !== 0 && <AlertTriangle size={14} className="text-red-400" />}
-               Bank Discrepancy
-            </div>
-            <div className={`text-3xl font-bold font-mono ${report.discrepancy === 0 ? 'text-neutral-500' : 'text-red-500'}`}>
-               {report.discrepancy > 0 ? '+' : ''}{formatCurrency(report.discrepancy)}
-            </div>
-         </Card>
-      </div>
+      
 
-      <Card title="Profit/Loss Analysis">
-        <div className="w-full min-h-[300px] mt-4">
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+      <Card 
+        title="Profit/Loss Analysis"
+        headerAction={
+          <div className="flex flex-col items-end">
+             <div className="text-[10px] font-black text-neutral-500 uppercase tracking-widest leading-none mb-1">To Be Settled</div>
+             <div className="text-base font-black text-green-500 font-mono flex items-center gap-1.5">
+                <Coins size={14}/> {formatCurrency(totalSettlementVolume)}
+             </div>
+          </div>
+        }
+      >
+        <div className="w-full min-h-[350px] mt-4">
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={chartData} margin={{ top: 30, right: 30, left: 0, bottom: 20 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1f1f1f" />
               <XAxis dataKey="name" stroke="#525252" fontSize={11} tickLine={false} axisLine={false} dy={10} />
               <YAxis stroke="#525252" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
@@ -201,6 +196,15 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                 formatter={(value: number) => [formatCurrency(value), 'Profit']}
               />
               <Bar dataKey="profit" radius={[6, 6, 0, 0]}>
+                <LabelList 
+                   dataKey="profit" 
+                   position="top" 
+                   formatter={(val: number) => val === 0 ? '' : formatCurrency(val)} 
+                   fill="#a3a3a3" 
+                   fontSize={10} 
+                   fontWeight="bold"
+                   offset={10}
+                />
                 {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.profit >= 0 ? '#10b981' : '#ef4444'} fillOpacity={0.8} />
                 ))}
