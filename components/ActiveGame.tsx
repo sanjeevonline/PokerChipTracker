@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { GameSession, TransactionType, Player, Transaction } from '../types';
 import { Button, Card, Modal, Input, Select } from './UI';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
-import { Plus, ArrowRightLeft, History, AlertCircle, Save, UserPlus, LogOut, Users, X, HandCoins, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Plus, ArrowRightLeft, History, AlertCircle, Save, UserPlus, LogOut, Users, X, HandCoins, ArrowUpRight, ArrowDownLeft, Maximize2, DollarSign } from 'lucide-react';
 
 interface ActiveGameProps {
   game: GameSession;
@@ -22,7 +22,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
   onEndGame,
   onCancelEdit 
 }) => {
-  const [modalType, setModalType] = useState<'BUY_IN' | 'TRANSFER' | 'CASH_OUT' | 'COUNT_CHIPS' | 'ADD_PLAYER' | null>(null);
+  const [modalType, setModalType] = useState<'BUY_IN' | 'TRANSFER' | 'CASH_OUT' | 'COUNT_CHIPS' | 'ADD_PLAYER' | 'FULL_LEDGER' | null>(null);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>(game.players[0]?.id || '');
   const [targetPlayerId, setTargetPlayerId] = useState<string>(game.players[1]?.id || '');
   const [amount, setAmount] = useState<string>('');
@@ -45,6 +45,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
   }, [modalType, availablePlayers, playerToAddId]);
   
   const isMultiDenom = game.chipValue === undefined || game.chipValue === null;
+  const chipVal = game.chipValue || 1;
   const noArrowsClass = "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   const isDuplicateName = allPlayers.some(
@@ -167,7 +168,10 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
       return;
     }
 
+    const now = Date.now();
     const updatedStates = { ...game.playerStates };
+    const settlementTransactions: Transaction[] = [];
+
     Object.entries(counts).forEach(([pid, val]) => {
       const num = parseFloat(val as string);
       if (!isNaN(num)) {
@@ -176,14 +180,28 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
           ...(updatedStates[pid] || { playerId: pid, isCashedOut: false }),
           finalChips: finalValue
         };
+
+        // Log end-game count as a ledger entry
+        if (finalValue > 0) {
+          settlementTransactions.push({
+            id: crypto.randomUUID(),
+            timestamp: now,
+            type: TransactionType.CASH_OUT,
+            fromId: pid,
+            toId: 'BANK',
+            amount: finalValue,
+            note: 'Final Settlement'
+          });
+        }
       }
     });
 
     const finishedGame = {
       ...game,
+      transactions: [...settlementTransactions, ...game.transactions],
       playerStates: updatedStates,
       isActive: false,
-      endTime: game.endTime || Date.now()
+      endTime: game.endTime || now
     };
 
     onUpdateGame(finishedGame);
@@ -361,6 +379,12 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
            <span className="text-[9px] font-black text-white/30 uppercase tracking-widest flex items-center gap-1.5">
              <History size={10} /> RECENT LOGS
            </span>
+           <button 
+             onClick={() => setModalType('FULL_LEDGER')}
+             className="p-1 text-neutral-500 hover:text-white rounded hover:bg-neutral-800 transition-colors"
+           >
+             <Maximize2 size={12} />
+           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-1 space-y-1 custom-scrollbar">
           {game.transactions.length === 0 ? (
@@ -394,6 +418,47 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
       </div>
 
       {/* Modals */}
+      <Modal isOpen={modalType === 'FULL_LEDGER'} onClose={closeModal} title="Session Transaction History" size="xl">
+        <div className="space-y-4">
+           {game.transactions.length === 0 ? (
+             <div className="text-center py-12 text-neutral-600">No transactions recorded yet.</div>
+           ) : (
+             <div className="space-y-2">
+               {[...game.transactions].sort((a,b) => b.timestamp - a.timestamp).map(tx => {
+                  const fromPlayer = game.players.find(p => p.id === tx.fromId);
+                  const toPlayer = game.players.find(p => p.id === tx.toId);
+                  const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
+                  const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
+                  return (
+                    <div key={tx.id} className="flex items-center justify-between p-3 bg-neutral-900/40 border border-neutral-800/50 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                          {tx.type === TransactionType.BUY_IN ? <DollarSign size={16} /> : tx.type === TransactionType.CASH_OUT ? <LogOut size={16} /> : <ArrowRightLeft size={16} />}
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-neutral-200">
+                             {tx.type === TransactionType.BUY_IN ? `${toName} bought in from Bank` : tx.type === TransactionType.CASH_OUT ? `${fromName} cashed out to Bank` : `${fromName} sent to ${toName}`}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <div className="text-[10px] text-neutral-600 font-bold uppercase tracking-wider">
+                              {new Date(tx.timestamp).toLocaleTimeString()}
+                            </div>
+                            {tx.note && <span className="text-[9px] text-red-400 bg-red-950/20 px-1.5 py-0.5 rounded border border-red-900/30">{tx.note}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-sm font-mono font-black text-white">{game.chipValue ? (tx.amount / game.chipValue).toLocaleString() : formatCurrency(tx.amount)} {game.chipValue && <span className="text-[10px] opacity-40 font-normal">chips</span>}</div>
+                        {game.chipValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
+                      </div>
+                    </div>
+                  );
+               })}
+             </div>
+           )}
+        </div>
+      </Modal>
+
       <Modal isOpen={modalType === 'BUY_IN'} onClose={closeModal} title="Buy In">
         <div className="space-y-4">
           <Select label="Player" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />

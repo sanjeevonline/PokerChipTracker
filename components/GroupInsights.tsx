@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { GameSession, Player } from '../types';
+import { GameSession, Player, TransactionType } from '../types';
 import { calculateSettlement, calculatePayouts, formatCurrency, getPlayerStats } from '../services/gameService';
-import { TrendingUp, BarChart3, Trophy, History, HandCoins, ArrowRight, Copy, Check, Coins, Calendar } from 'lucide-react';
+import { TrendingUp, BarChart3, Trophy, History, HandCoins, ArrowRight, Copy, Check, Coins, Calendar, Landmark, Repeat, Zap, History as HistorySubIcon } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 
 interface GroupInsightsProps {
@@ -21,6 +21,44 @@ export const GroupInsights: React.FC<GroupInsightsProps> = ({ groupGames, groupP
   
   const latestFinishedGame = finishedGames[0];
   const activeGame = groupGames.find(g => g.isActive);
+
+  // Aggregate highlights across all ledger entries in group history
+  const groupHighlights = useMemo(() => {
+    if (finishedGames.length === 0) return null;
+
+    const stats: Record<string, { loansOut: number, loansIn: number, buyInCount: number, txCount: number }> = {};
+    groupPlayers.forEach(p => {
+      stats[p.id] = { loansOut: 0, loansIn: 0, buyInCount: 0, txCount: 0 };
+    });
+
+    finishedGames.forEach(game => {
+      game.transactions.forEach(t => {
+        if (t.fromId !== 'BANK' && stats[t.fromId]) {
+          stats[t.fromId].txCount++;
+          if (t.type === TransactionType.TRANSFER) stats[t.fromId].loansOut += t.amount;
+        }
+        if (t.toId !== 'BANK' && stats[t.toId]) {
+          stats[t.toId].txCount++;
+          if (t.type === TransactionType.TRANSFER) stats[t.toId].loansIn += t.amount;
+          if (t.type === TransactionType.BUY_IN) stats[t.toId].buyInCount++;
+        }
+      });
+    });
+
+    const getPlayerName = (id: string) => groupPlayers.find(p => p.id === id)?.name || 'Unknown';
+
+    const financier = Object.entries(stats).sort((a, b) => b[1].loansOut - a[1].loansOut)[0];
+    const borrower = Object.entries(stats).sort((a, b) => b[1].loansIn - a[1].loansIn)[0];
+    const rebuyer = Object.entries(stats).sort((a, b) => b[1].buyInCount - a[1].buyInCount)[0];
+    const actionJunkie = Object.entries(stats).sort((a, b) => b[1].txCount - a[1].txCount)[0];
+
+    return {
+      financier: financier && financier[1].loansOut > 0 ? { name: getPlayerName(financier[0]), val: financier[1].loansOut } : null,
+      borrower: borrower && borrower[1].loansIn > 0 ? { name: getPlayerName(borrower[0]), val: borrower[1].loansIn } : null,
+      rebuyer: rebuyer && rebuyer[1].buyInCount > 0 ? { name: getPlayerName(rebuyer[0]), count: rebuyer[1].buyInCount } : null,
+      action: actionJunkie && actionJunkie[1].txCount > 0 ? { name: getPlayerName(actionJunkie[0]), count: actionJunkie[1].txCount } : null
+    };
+  }, [finishedGames, groupPlayers]);
 
   const stats = useMemo(() => {
     let totalPot = 0;
@@ -66,8 +104,8 @@ export const GroupInsights: React.FC<GroupInsightsProps> = ({ groupGames, groupP
   );
 
   return (
-    <div className="space-y-6">
-      {/* Overview Stats moved from Dashboard */}
+    <div className="space-y-8">
+      {/* Overview Stats Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-neutral-900 border border-neutral-800 p-4 rounded-2xl shadow-sm">
           <div className="text-[9px] font-black text-neutral-500 uppercase tracking-widest mb-1 flex items-center gap-1.5">
@@ -94,6 +132,57 @@ export const GroupInsights: React.FC<GroupInsightsProps> = ({ groupGames, groupP
           </div>
         </div>
       </div>
+
+      {/* All-Time Group Historical Highlights */}
+      {groupHighlights && (
+        <div className="space-y-3">
+          <h2 className="text-[10px] font-black text-neutral-500 uppercase tracking-[0.3em] flex items-center gap-3 px-1">
+            <TrendingUp size={14} /> ALL-TIME GROUP ACHIEVEMENTS
+          </h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {groupHighlights.financier && (
+              <div className="bg-blue-600/5 border border-blue-500/10 p-3 rounded-xl flex items-center gap-3">
+                <div className="bg-blue-600/10 p-2 rounded-lg text-blue-500/80"><Landmark size={18}/></div>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-black text-blue-500/60 uppercase tracking-widest leading-none mb-1">The Financier</div>
+                  <div className="text-sm font-bold text-white truncate">{groupHighlights.financier.name}</div>
+                  <div className="text-[10px] text-blue-400/50 font-mono">Lent {formatCurrency(groupHighlights.financier.val)}</div>
+                </div>
+              </div>
+            )}
+            {groupHighlights.borrower && (
+              <div className="bg-red-600/5 border border-red-500/10 p-3 rounded-xl flex items-center gap-3">
+                <div className="bg-red-600/10 p-2 rounded-lg text-red-500/80"><HistorySubIcon size={18}/></div>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-black text-red-500/60 uppercase tracking-widest leading-none mb-1">The Borrower</div>
+                  <div className="text-sm font-bold text-white truncate">{groupHighlights.borrower.name}</div>
+                  <div className="text-[10px] text-red-400/50 font-mono">Took {formatCurrency(groupHighlights.borrower.val)}</div>
+                </div>
+              </div>
+            )}
+            {groupHighlights.rebuyer && (
+              <div className="bg-green-600/5 border border-green-500/10 p-3 rounded-xl flex items-center gap-3">
+                <div className="bg-green-600/10 p-2 rounded-lg text-green-500/80"><Repeat size={18}/></div>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-black text-green-500/60 uppercase tracking-widest leading-none mb-1">Re-Buy King</div>
+                  <div className="text-sm font-bold text-white truncate">{groupHighlights.rebuyer.name}</div>
+                  <div className="text-[10px] text-green-400/50 font-mono">{groupHighlights.rebuyer.count} Buy-ins</div>
+                </div>
+              </div>
+            )}
+            {groupHighlights.action && (
+              <div className="bg-amber-600/5 border border-amber-500/10 p-3 rounded-xl flex items-center gap-3">
+                <div className="bg-amber-600/10 p-2 rounded-lg text-amber-500/80"><Zap size={18}/></div>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-black text-amber-500/60 uppercase tracking-widest leading-none mb-1">Action Junkie</div>
+                  <div className="text-sm font-bold text-white truncate">{groupHighlights.action.name}</div>
+                  <div className="text-[10px] text-amber-400/50 font-mono">{groupHighlights.action.count} Entries</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden shadow-2xl">
         <div className="grid grid-cols-1 lg:grid-cols-12">
@@ -126,7 +215,7 @@ export const GroupInsights: React.FC<GroupInsightsProps> = ({ groupGames, groupP
                   <h4 className="text-sm font-bold text-white flex items-center gap-2"><History size={16} className="text-red-500" /> Recent Pot Values</h4>
                 </div>
                 <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={100}>
                     <BarChart data={stats.volumeData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1f1f1f" />
                       <XAxis dataKey="name" fontSize={10} stroke="#404040" tickLine={false} axisLine={false} />

@@ -93,18 +93,24 @@ export const Select: React.FC<SelectProps> = ({ label, options, className = '', 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
   title?: string;
+  headerAction?: React.ReactNode;
 }
 
-export const Card: React.FC<CardProps> = ({ children, className = '', title, ...props }) => {
+export const Card: React.FC<CardProps> = ({ children, className = '', title, headerAction, ...props }) => {
   return (
     <div 
       className={`bg-neutral-900/80 border border-neutral-800 rounded-xl p-6 backdrop-blur-sm ${className}`}
       {...props}
     >
-      {title && <h3 className="text-lg font-bold text-white mb-4 border-b border-neutral-800 pb-2 flex items-center gap-2">
-        <span className="w-1 h-4 bg-red-600 rounded-full inline-block"></span>
-        {title}
-      </h3>}
+      {title && (
+        <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-2">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <span className="w-1 h-4 bg-red-600 rounded-full inline-block"></span>
+            {title}
+          </h3>
+          {headerAction && <div>{headerAction}</div>}
+        </div>
+      )}
       {children}
     </div>
   );

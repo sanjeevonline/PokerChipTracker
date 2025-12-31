@@ -1,9 +1,9 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { GameSession, TransactionType, Player } from '../types';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
-import { Button, Card } from './UI';
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, LogOut } from 'lucide-react';
+import { Button, Card, Modal } from './UI';
+import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, LogOut, Award, Zap, Landmark, Repeat, Maximize2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 
 interface SettlementReportProps {
@@ -13,8 +13,45 @@ interface SettlementReportProps {
 }
 
 export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack, onEdit }) => {
+  const [isLedgerExpanded, setIsLedgerExpanded] = useState(false);
   const report = useMemo(() => calculateSettlement(game), [game]);
   
+  // Ledger-based highlights analysis
+  const highlights = useMemo(() => {
+    const tx = game.transactions;
+    const playerStats: Record<string, { loansOut: number, loansIn: number, buyInCount: number, txCount: number }> = {};
+    
+    game.players.forEach(p => {
+      playerStats[p.id] = { loansOut: 0, loansIn: 0, buyInCount: 0, txCount: 0 };
+    });
+
+    tx.forEach(t => {
+      if (t.fromId !== 'BANK' && playerStats[t.fromId]) {
+        playerStats[t.fromId].txCount++;
+        if (t.type === TransactionType.TRANSFER) playerStats[t.fromId].loansOut += t.amount;
+      }
+      if (t.toId !== 'BANK' && playerStats[t.toId]) {
+        playerStats[t.toId].txCount++;
+        if (t.type === TransactionType.TRANSFER) playerStats[t.toId].loansIn += t.amount;
+        if (t.type === TransactionType.BUY_IN) playerStats[t.toId].buyInCount++;
+      }
+    });
+
+    const getPlayerName = (id: string) => game.players.find(p => p.id === id)?.name || 'Unknown';
+
+    const financier = Object.entries(playerStats).sort((a, b) => b[1].loansOut - a[1].loansOut)[0];
+    const borrower = Object.entries(playerStats).sort((a, b) => b[1].loansIn - a[1].loansIn)[0];
+    const rebuyer = Object.entries(playerStats).sort((a, b) => b[1].buyInCount - a[1].buyInCount)[0];
+    const actionJunkie = Object.entries(playerStats).sort((a, b) => b[1].txCount - a[1].txCount)[0];
+
+    return {
+      financier: financier && financier[1].loansOut > 0 ? { name: getPlayerName(financier[0]), val: financier[1].loansOut } : null,
+      borrower: borrower && borrower[1].loansIn > 0 ? { name: getPlayerName(borrower[0]), val: borrower[1].loansIn } : null,
+      rebuyer: rebuyer && rebuyer[1].buyInCount > 1 ? { name: getPlayerName(rebuyer[0]), count: rebuyer[1].buyInCount } : null,
+      action: actionJunkie && actionJunkie[1].txCount > 0 ? { name: getPlayerName(actionJunkie[0]), count: actionJunkie[1].txCount } : null
+    };
+  }, [game]);
+
   const chartData = report.players.map(p => ({
     name: p.name,
     profit: p.netProfit
@@ -24,6 +61,48 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
 
   const isFixedValue = typeof game.chipValue === 'number';
   const chipVal = game.chipValue || 1;
+
+  const renderLedgerList = (isCompact = false) => (
+    <div className={`space-y-2 ${isCompact ? 'max-h-96 overflow-y-auto pr-2 custom-scrollbar' : 'space-y-3'}`}>
+      {sortedTransactions.length === 0 ? (
+        <div className="text-center text-neutral-500 py-8">
+          <History size={32} className="mx-auto mb-2 opacity-20" />
+          <p className="text-xs">No transactions were recorded during this session.</p>
+        </div>
+      ) : (
+        sortedTransactions.map(tx => {
+          const fromPlayer = game.players.find(p => p.id === tx.fromId);
+          const toPlayer = game.players.find(p => p.id === tx.toId);
+          const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
+          const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
+          return (
+            <div key={tx.id} className="flex items-center justify-between p-3 bg-neutral-900/30 rounded-xl border border-neutral-800/40 hover:bg-neutral-800/20 transition-colors">
+               <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                    {tx.type === TransactionType.BUY_IN ? <DollarSign size={14} /> : tx.type === TransactionType.CASH_OUT ? <LogOut size={14} /> : <ArrowRightLeft size={14} />}
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-neutral-200">
+                      {tx.type === TransactionType.BUY_IN ? `${toName} bought in` : tx.type === TransactionType.CASH_OUT ? `${fromName} cashed out` : `${fromName} sent to ${toName}`}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className="text-[10px] text-neutral-600 uppercase tracking-widest font-bold">
+                        {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      {tx.note && <span className="text-[9px] bg-red-950/30 text-red-400/70 px-1.5 py-0.5 rounded border border-red-900/20">{tx.note}</span>}
+                    </div>
+                  </div>
+               </div>
+               <div className="text-right">
+                  <div className="font-mono font-bold text-sm text-neutral-300">{isFixedValue ? `${Math.round(tx.amount / chipVal).toLocaleString()} chips` : formatCurrency(tx.amount)}</div>
+                  {isFixedValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
+               </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
@@ -39,6 +118,50 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
           </div>
         </div>
         <Button onClick={onEdit} variant="ghost" icon={<Edit size={18}/>}>Edit Game</Button>
+      </div>
+
+      {/* Ledger Highlights Badges */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {highlights.financier && (
+          <div className="bg-blue-600/10 border border-blue-500/20 p-3 rounded-xl flex items-center gap-3">
+            <div className="bg-blue-600/20 p-2 rounded-lg text-blue-400"><Landmark size={18}/></div>
+            <div className="min-w-0">
+              <div className="text-[9px] font-black text-blue-500 uppercase tracking-widest leading-none mb-1">The Financier</div>
+              <div className="text-sm font-bold text-white truncate">{highlights.financier.name}</div>
+              <div className="text-[10px] text-blue-400/70 font-mono">Loaned {formatCurrency(highlights.financier.val)}</div>
+            </div>
+          </div>
+        )}
+        {highlights.borrower && (
+          <div className="bg-red-600/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-3">
+            <div className="bg-red-600/20 p-2 rounded-lg text-red-400"><History size={18}/></div>
+            <div className="min-w-0">
+              <div className="text-[9px] font-black text-red-500 uppercase tracking-widest leading-none mb-1">The Borrower</div>
+              <div className="text-sm font-bold text-white truncate">{highlights.borrower.name}</div>
+              <div className="text-[10px] text-red-400/70 font-mono">Borrowed {formatCurrency(highlights.borrower.val)}</div>
+            </div>
+          </div>
+        )}
+        {highlights.rebuyer && (
+          <div className="bg-green-600/10 border border-green-500/20 p-3 rounded-xl flex items-center gap-3">
+            <div className="bg-green-600/20 p-2 rounded-lg text-green-400"><Repeat size={18}/></div>
+            <div className="min-w-0">
+              <div className="text-[9px] font-black text-green-500 uppercase tracking-widest leading-none mb-1">Re-Buy King</div>
+              <div className="text-sm font-bold text-white truncate">{highlights.rebuyer.name}</div>
+              <div className="text-[10px] text-green-400/70 font-mono">{highlights.rebuyer.count} Entry Logs</div>
+            </div>
+          </div>
+        )}
+        {highlights.action && (
+          <div className="bg-amber-600/10 border border-amber-500/20 p-3 rounded-xl flex items-center gap-3">
+            <div className="bg-amber-600/20 p-2 rounded-lg text-amber-400"><Zap size={18}/></div>
+            <div className="min-w-0">
+              <div className="text-[9px] font-black text-amber-500 uppercase tracking-widest leading-none mb-1">Action Junkie</div>
+              <div className="text-sm font-bold text-white truncate">{highlights.action.name}</div>
+              <div className="text-[10px] text-amber-400/70 font-mono">{highlights.action.count} Ledger Entries</div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -151,44 +274,41 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
         </div>
       </div>
 
-      <Card title="Game Ledger History">
-        <div className="space-y-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-          {sortedTransactions.length === 0 ? (
-            <div className="text-center text-neutral-500 py-8">
-              <History size={32} className="mx-auto mb-2 opacity-20" />
-              <p className="text-xs">No transactions were recorded during this session.</p>
-            </div>
-          ) : (
-            sortedTransactions.map(tx => {
-              const fromPlayer = game.players.find(p => p.id === tx.fromId);
-              const toPlayer = game.players.find(p => p.id === tx.toId);
-              const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
-              const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
-              return (
-                <div key={tx.id} className="flex items-center justify-between p-3 bg-neutral-900/30 rounded-xl border border-neutral-800/40">
-                   <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                        {tx.type === TransactionType.BUY_IN ? <DollarSign size={14} /> : tx.type === TransactionType.CASH_OUT ? <LogOut size={14} /> : <ArrowRightLeft size={14} />}
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-neutral-200">
-                          {tx.type === TransactionType.BUY_IN ? `${toName} bought in` : tx.type === TransactionType.CASH_OUT ? `${fromName} cashed out` : `${fromName} sent to ${toName}`}
-                        </div>
-                        <div className="text-[10px] text-neutral-600 uppercase tracking-widest font-bold">
-                          {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                   </div>
-                   <div className="text-right">
-                      <div className="font-mono font-bold text-sm text-neutral-300">{isFixedValue ? `${Math.round(tx.amount / chipVal).toLocaleString()} chips` : formatCurrency(tx.amount)}</div>
-                      {isFixedValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
-                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+      <Card 
+        title="Game Ledger History" 
+        headerAction={
+          <button 
+            onClick={() => setIsLedgerExpanded(true)}
+            className="p-1.5 text-neutral-500 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
+            title="View Full Screen Ledger"
+          >
+            <Maximize2 size={16} />
+          </button>
+        }
+      >
+        {renderLedgerList(true)}
       </Card>
+
+      <Modal 
+        isOpen={isLedgerExpanded} 
+        onClose={() => setIsLedgerExpanded(false)} 
+        title="Full Session Ledger"
+        size="xl"
+      >
+        <div className="space-y-4">
+           <div className="bg-neutral-900/50 border border-neutral-800 p-4 rounded-xl flex items-center justify-between">
+              <div>
+                 <div className="text-[10px] text-neutral-500 font-black uppercase tracking-widest mb-1">Session Data</div>
+                 <div className="text-lg font-black text-white">{new Date(game.startTime).toLocaleDateString()} Session</div>
+              </div>
+              <div className="text-right">
+                 <div className="text-[10px] text-neutral-500 font-black uppercase tracking-widest mb-1">Total Pot</div>
+                 <div className="text-lg font-black text-green-500 font-mono">{formatCurrency(report.totalBuyIn)}</div>
+              </div>
+           </div>
+           {renderLedgerList(false)}
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -272,8 +272,9 @@ export const calculateSettlement = (game: GameSession): GameSettlementReport => 
       .filter(t => t.type === TransactionType.TRANSFER && t.fromId === p.id)
       .reduce((sum, t) => sum + t.amount, 0);
 
+    // CRITICAL: We distinguish between mid-game cash outs and final settlement ledger entries
     const cashOutsDuringGame = game.transactions
-      .filter(t => t.type === TransactionType.CASH_OUT && t.fromId === p.id)
+      .filter(t => t.type === TransactionType.CASH_OUT && t.fromId === p.id && t.note !== 'Final Settlement')
       .reduce((sum, t) => sum + t.amount, 0);
 
     const netInvested = round((bankBuyIns - cashOutsDuringGame) + (transfersIn - transfersOut));

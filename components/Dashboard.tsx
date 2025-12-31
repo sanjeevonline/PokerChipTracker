@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Group, GameSession, Player } from '../types';
 import { Button } from './UI';
 import { History } from './History';
@@ -31,6 +31,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onSelectGameHistory
 }) => {
   const active = groupGames.find(g => g.isActive);
+  const finishedGames = useMemo(() => groupGames.filter(g => !g.isActive), [groupGames]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -46,7 +47,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </h1>
           </div>
           <p className="text-neutral-500 text-sm font-bold uppercase tracking-widest">
-            {groupPlayers.length} Active Members • {groupGames.filter(g => !g.isActive).length} Archive Entries
+            {groupPlayers.length} Active Members • {finishedGames.length} Archive Entries
           </p>
         </div>
 
@@ -99,7 +100,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <Button variant="ghost" size="sm" onClick={onViewHistory} className="text-[10px] font-black uppercase tracking-widest text-red-500">View Archive</Button>
         </div>
         <History
-          games={groupGames.filter(g => !g.isActive).slice(0, 10)}
+          games={finishedGames.slice(0, 10)}
           onSelectGame={onSelectGameHistory}
         />
       </div>

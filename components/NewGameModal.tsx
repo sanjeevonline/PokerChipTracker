@@ -149,19 +149,6 @@ export const NewGameModal: React.FC<NewGameModalProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-neutral-900/40 p-3 rounded-xl border border-neutral-800/50">
-          {gameMode === 'SINGLE' ? (
-            <Input 
-              label="Individual Chip Value ($)" 
-              type="number" 
-              step="0.01" 
-              value={newGameChipValue} 
-              onChange={(e) => setNewGameChipValue(e.target.value)} 
-              className={noArrowsClass} 
-            />
-          ) : (
-             <div className="hidden md:block"></div> 
-          )}
-          
           <div className="space-y-1">
             <Input 
               label={gameMode === 'SINGLE' ? "Default Buy-In (Chips)" : "Default Buy-In ($)"} 
@@ -180,6 +167,17 @@ export const NewGameModal: React.FC<NewGameModalProps> = ({
               </button>
             )}
           </div>
+
+          {gameMode === 'SINGLE' && (
+            <Input 
+              label="Individual Chip Value ($)" 
+              type="number" 
+              step="0.01" 
+              value={newGameChipValue} 
+              onChange={(e) => setNewGameChipValue(e.target.value)} 
+              className={noArrowsClass} 
+            />
+          )}
         </div>
         
         <div className="space-y-2">
