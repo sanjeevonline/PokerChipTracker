@@ -312,8 +312,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
         </div>
       </div>
 
-      {/* Compact Readable Player Grid - Optimized 50/50 Layout */}
-      <div className="flex-1 overflow-y-auto grid grid-cols-2 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 pr-1 custom-scrollbar pb-1">
+      {/* Responsive Player Grid - Updated to show single column on mobile for up to 12 players */}
+      <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1.5 pr-1 custom-scrollbar pb-1">
         {activePlayers.map(player => {
           const stats = report.players.find(p => p.playerId === player.id);
           if (!stats) return null;
