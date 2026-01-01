@@ -3,7 +3,6 @@ import React, { useMemo, useState } from 'react';
 import { GameSession, TransactionType, Player } from '../types';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
 import { Button, Card, Modal } from './UI';
-// Added missing Zap import to the lucide-react import list
 import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, LogOut, Landmark, Repeat, Maximize2, Coins, Zap } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 
@@ -100,7 +99,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                   </div>
                </div>
                <div className="text-right">
-                  <div className="font-mono font-bold text-sm text-neutral-300">{isFixedValue ? `${Math.round(tx.amount / chipVal).toLocaleString()} chips` : formatCurrency(tx.amount)}</div>
+                  <div className="font-mono font-bold text-sm text-neutral-300">{isFixedValue ? `${Math.round(tx.amount / chipVal).toLocaleString()}` : formatCurrency(tx.amount)}</div>
                   {isFixedValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
                </div>
             </div>
@@ -119,7 +118,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
              <h2 className="text-2xl font-bold text-white">Game Settlement</h2>
              <p className="text-neutral-400 text-sm">
                {new Date(game.startTime).toLocaleDateString()} • {report.durationMinutes} minutes session
-               {isFixedValue && game.chipValue && <span className="ml-2 text-red-400">• Chip Value: {formatCurrency(game.chipValue)}</span>}
+               {isFixedValue && game.chipValue && <span className="ml-2 text-red-400">• Value: {formatCurrency(game.chipValue)}</span>}
              </p>
           </div>
         </div>
@@ -170,7 +169,28 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
         )}
       </div>
 
-      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+         <Card className="flex flex-col items-center justify-center text-center py-6 bg-gradient-to-br from-neutral-900 to-black border-neutral-800 shadow-xl">
+            <div className="text-neutral-500 uppercase text-[10px] font-bold tracking-[0.2em] mb-2">Total Buy-In</div>
+            <div className="text-3xl font-bold text-white font-mono">{formatCurrency(report.totalBuyIn)}</div>
+         </Card>
+         <Card className="flex flex-col items-center justify-center text-center py-6 bg-gradient-to-br from-neutral-900 to-black border-neutral-800 shadow-xl">
+            <div className="text-neutral-500 uppercase text-[10px] font-bold tracking-[0.2em] mb-2">Total Final Count</div>
+            <div className="text-3xl font-bold text-green-500 font-mono">
+              {isFixedValue ? `${Math.round(report.totalChips / chipVal).toLocaleString()}` : formatCurrency(report.totalChips)}
+            </div>
+            {isFixedValue && <div className="text-xs text-neutral-500 font-mono mt-1">{formatCurrency(report.totalChips)}</div>}
+         </Card>
+         <Card className={`flex flex-col items-center justify-center text-center py-6 shadow-xl ${report.discrepancy !== 0 ? 'bg-red-950/20 border-red-900/40' : 'bg-gradient-to-br from-neutral-900 to-black border-neutral-800'}`}>
+            <div className="text-neutral-500 uppercase text-[10px] font-bold tracking-[0.2em] mb-2 flex items-center gap-2">
+               {report.discrepancy !== 0 && <AlertTriangle size={14} className="text-red-400" />}
+               Discrepancy
+            </div>
+            <div className={`text-3xl font-bold font-mono ${report.discrepancy === 0 ? 'text-neutral-500' : 'text-red-500'}`}>
+               {report.discrepancy > 0 ? '+' : ''}{formatCurrency(report.discrepancy)}
+            </div>
+         </Card>
+      </div>
 
       <Card 
         title="Profit/Loss Analysis"
@@ -236,7 +256,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                       <div className="min-w-0">
                         <h4 className="text-sm font-bold text-white truncate pr-1" title={p.name}>{p.name}</h4>
                         <div className={`text-[9px] font-bold uppercase tracking-wider ${isWinner ? 'text-green-500' : isLoser ? 'text-red-500' : 'text-neutral-500'}`}>
-                          {isWinner ? 'Profit' : isLoser ? 'Loss' : 'Even'}
+                          {isWinner ? 'Winner' : isLoser ? 'Loss' : 'Even'}
                         </div>
                       </div>
                     </div>
@@ -250,25 +270,25 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                     <div className="space-y-2">
                        <div>
                           <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Bank Buy-In</span>
-                          <span className="text-neutral-300 font-mono font-medium block truncate">{isFixedValue ? `${Math.round(p.totalBuyIn / chipVal).toLocaleString()} units` : formatCurrency(p.totalBuyIn)}</span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate">{isFixedValue ? `${Math.round(p.totalBuyIn / chipVal).toLocaleString()}` : formatCurrency(p.totalBuyIn)}</span>
                        </div>
                        <div>
-                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Net Invested</span>
-                          <span className="text-neutral-300 font-mono font-medium block truncate">{isFixedValue ? `${Math.round(p.netInvested / chipVal).toLocaleString()} units` : formatCurrency(p.netInvested)}</span>
+                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Final Chips</span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate">{isFixedValue ? `${Math.round(p.finalChips / chipVal).toLocaleString()}` : formatCurrency(p.finalChips)}</span>
                        </div>
                     </div>
                     <div className="space-y-2">
                        <div>
-                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Final Chips</span>
-                          <span className="text-neutral-300 font-mono font-medium block truncate">{isFixedValue ? `${Math.round(p.finalChips / chipVal).toLocaleString()} units` : formatCurrency(p.finalChips)}</span>
-                       </div>
-                       <div>
-                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Loans</span>
+                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Total Loans</span>
                           <div className="flex flex-col min-w-0">
                              {p.transfersIn > 0 && <span className="text-red-400 truncate leading-tight">-{isFixedValue ? Math.round(p.transfersIn / chipVal) : formatCurrency(p.transfersIn)} (B)</span>}
                              {p.transfersOut > 0 && <span className="text-green-400 truncate leading-tight">+{isFixedValue ? Math.round(p.transfersOut / chipVal) : formatCurrency(p.transfersOut)} (L)</span>}
                              {p.transfersIn === 0 && p.transfersOut === 0 && <span className="text-neutral-600">None</span>}
                           </div>
+                       </div>
+                       <div>
+                          <span className="text-neutral-500 font-bold uppercase block tracking-tighter mb-0.5">Net Invested</span>
+                          <span className="text-neutral-300 font-mono font-medium block truncate font-bold">{isFixedValue ? `${Math.round(p.netInvested / chipVal).toLocaleString()}` : formatCurrency(p.netInvested)}</span>
                        </div>
                     </div>
                   </div>

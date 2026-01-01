@@ -448,7 +448,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-mono font-black text-white">{game.chipValue ? (tx.amount / game.chipValue).toLocaleString() : formatCurrency(tx.amount)} {game.chipValue && <span className="text-[10px] opacity-40 font-normal">chips</span>}</div>
+                        <div className="text-sm font-mono font-black text-white">{game.chipValue ? (tx.amount / game.chipValue).toLocaleString() : formatCurrency(tx.amount)}</div>
                         {game.chipValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
                       </div>
                     </div>
@@ -462,7 +462,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
       <Modal isOpen={modalType === 'BUY_IN'} onClose={closeModal} title="Buy In">
         <div className="space-y-4">
           <Select label="Player" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
-          <Input label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
+          <Input label={isMultiDenom ? "Amount ($)" : "Amount"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
           <Button className="w-full py-2.5" onClick={handleTransaction}>Confirm Buy In</Button>
         </div>
       </Modal>
@@ -470,18 +470,18 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
       <Modal isOpen={modalType === 'CASH_OUT'} onClose={closeModal} title="Cash Out">
         <div className="space-y-4">
           <Select label="Player" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
-          <Input label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
+          <Input label={isMultiDenom ? "Amount ($)" : "Amount"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
           <Button className="w-full py-2.5" variant="secondary" onClick={handleTransaction}>Confirm Cash Out</Button>
         </div>
       </Modal>
 
-      <Modal isOpen={modalType === 'TRANSFER'} onClose={closeModal} title="Transfer Chips (Loan)">
+      <Modal isOpen={modalType === 'TRANSFER'} onClose={closeModal} title="Transfer (Loan)">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Select label="From" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
             <Select label="To" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={targetPlayerId} onChange={(e) => setTargetPlayerId(e.target.value)} />
           </div>
-          <Input label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
+          <Input label={isMultiDenom ? "Amount ($)" : "Amount"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
           <Button className="w-full py-2.5" onClick={handleTransaction} disabled={selectedPlayerId === targetPlayerId}>Confirm Loan</Button>
         </div>
       </Modal>
@@ -508,7 +508,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
                error={isDuplicateName ? "This player already exists in the group roster." : undefined}
              />
            )}
-           <Input label={isMultiDenom ? "Buy-In ($)" : "Buy-In (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} className={noArrowsClass} />
+           <Input label={isMultiDenom ? "Buy-In ($)" : "Buy-In"} type="number" step={isMultiDenom ? "0.01" : "1"} placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} className={noArrowsClass} />
            <Button className="w-full py-2.5" onClick={handleAddPlayer} disabled={(newPlayerMode === 'EXISTING' && !playerToAddId) || (newPlayerMode === 'NEW' && (!newPlayerName.trim() || isDuplicateName || isCreating))}>Seat Player</Button>
         </div>
       </Modal>
@@ -556,7 +556,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
                <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
                <div className="text-xs">
                   <div className="font-black text-white uppercase tracking-tight text-[10px]">Ledger Mismatch Detected</div>
-                  <div className="text-red-200 mt-1 font-bold">Difference: <span className="font-mono text-white underline decoration-red-500 decoration-2">{isMultiDenom ? formatCurrency(discrepancy) : `${chipsDiscrepancy} units`}</span></div>
+                  <div className="text-red-200 mt-1 font-bold">Difference: <span className="font-mono text-white underline decoration-red-500 decoration-2">{isMultiDenom ? formatCurrency(discrepancy) : `${chipsDiscrepancy}`}</span></div>
                </div>
             </div>
           )}
