@@ -1,9 +1,10 @@
 
 import React, { useMemo, useState } from 'react';
-import { GameSession, TransactionType, Player } from '../types';
+import { GameSession } from '../types';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
 import { Button, Card, Modal } from './UI';
-import { AlertTriangle, ArrowLeft, ArrowRightLeft, DollarSign, History, Edit, TrendingUp, TrendingDown, LogOut, Landmark, Repeat, Maximize2, Coins, Zap } from 'lucide-react';
+import { Ledger } from './Ledger';
+import { AlertTriangle, ArrowLeft, TrendingUp, TrendingDown, Maximize2, Coins, Zap, Landmark, Repeat } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 
 interface SettlementReportProps {
@@ -16,12 +17,10 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
   const [isLedgerExpanded, setIsLedgerExpanded] = useState(false);
   const report = useMemo(() => calculateSettlement(game), [game]);
   
-  // Calculate total volume to be settled (sum of all positive profits)
   const totalSettlementVolume = useMemo(() => {
     return report.players.reduce((sum, p) => p.netProfit > 0 ? sum + p.netProfit : sum, 0);
   }, [report]);
 
-  // Ledger-based highlights analysis
   const highlights = useMemo(() => {
     const tx = game.transactions;
     const playerStats: Record<string, { loansOut: number, loansIn: number, buyInCount: number, txCount: number }> = {};
@@ -33,12 +32,12 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
     tx.forEach(t => {
       if (t.fromId !== 'BANK' && playerStats[t.fromId]) {
         playerStats[t.fromId].txCount++;
-        if (t.type === TransactionType.TRANSFER) playerStats[t.fromId].loansOut += t.amount;
+        if (t.type === 'TRANSFER') playerStats[t.fromId].loansOut += t.amount;
       }
       if (t.toId !== 'BANK' && playerStats[t.toId]) {
         playerStats[t.toId].txCount++;
-        if (t.type === TransactionType.TRANSFER) playerStats[t.toId].loansIn += t.amount;
-        if (t.type === TransactionType.BUY_IN) playerStats[t.toId].buyInCount++;
+        if (t.type === 'TRANSFER') playerStats[t.toId].loansIn += t.amount;
+        if (t.type === 'BUY_IN') playerStats[t.toId].buyInCount++;
       }
     });
 
@@ -63,51 +62,8 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
   }));
 
   const sortedTransactions = [...game.transactions].sort((a, b) => b.timestamp - a.timestamp);
-
   const isFixedValue = typeof game.chipValue === 'number';
   const chipVal = game.chipValue || 1;
-
-  const renderLedgerList = (isCompact = false) => (
-    <div className={`space-y-2 ${isCompact ? 'max-h-96 overflow-y-auto pr-2 custom-scrollbar' : 'space-y-3'}`}>
-      {sortedTransactions.length === 0 ? (
-        <div className="text-center text-neutral-500 py-8">
-          <History size={32} className="mx-auto mb-2 opacity-20" />
-          <p className="text-xs">No transactions were recorded during this session.</p>
-        </div>
-      ) : (
-        sortedTransactions.map(tx => {
-          const fromPlayer = game.players.find(p => p.id === tx.fromId);
-          const toPlayer = game.players.find(p => p.id === tx.toId);
-          const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
-          const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
-          return (
-            <div key={tx.id} className="flex items-center justify-between p-3 bg-neutral-900/30 rounded-xl border border-neutral-800/40 hover:bg-neutral-800/20 transition-colors">
-               <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                    {tx.type === TransactionType.BUY_IN ? <DollarSign size={14} /> : tx.type === TransactionType.CASH_OUT ? <LogOut size={14} /> : <ArrowRightLeft size={14} />}
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-neutral-200">
-                      {tx.type === TransactionType.BUY_IN ? `${toName} bought in` : tx.type === TransactionType.CASH_OUT ? `${fromName} cashed out` : `${fromName} sent to ${toName}`}
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="text-[10px] text-neutral-600 uppercase tracking-widest font-bold">
-                        {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                      {tx.note && <span className="text-[9px] bg-red-950/30 text-red-400/70 px-1.5 py-0.5 rounded border border-red-900/20">{tx.note}</span>}
-                    </div>
-                  </div>
-               </div>
-               <div className="text-right">
-                  <div className="font-mono font-bold text-sm text-neutral-300">{isFixedValue ? `${Math.round(tx.amount / chipVal).toLocaleString()}` : formatCurrency(tx.amount)}</div>
-                  {isFixedValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
-               </div>
-            </div>
-          );
-        })
-      )}
-    </div>
-  );
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
@@ -122,10 +78,9 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
              </p>
           </div>
         </div>
-        <Button onClick={onEdit} variant="ghost" icon={<Edit size={18}/>}>Edit Game</Button>
+        <Button onClick={onEdit} variant="ghost" icon={<Maximize2 size={18}/>}>Edit Game</Button>
       </div>
 
-      {/* Ledger Highlights Badges */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {highlights.financier && (
           <div className="bg-blue-600/10 border border-blue-500/20 p-3 rounded-xl flex items-center gap-3">
@@ -139,7 +94,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
         )}
         {highlights.borrower && (
           <div className="bg-red-600/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-3">
-            <div className="bg-red-600/20 p-2 rounded-lg text-red-400"><History size={18}/></div>
+            <div className="bg-red-600/20 p-2 rounded-lg text-red-400"><Maximize2 size={18}/></div>
             <div className="min-w-0">
               <div className="text-[9px] font-black text-red-500 uppercase tracking-widest leading-none mb-1">The Borrower</div>
               <div className="text-sm font-bold text-white truncate">{highlights.borrower.name}</div>
@@ -310,7 +265,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
           </button>
         }
       >
-        {renderLedgerList(true)}
+        <Ledger game={game} transactions={sortedTransactions} isCompact={true} />
       </Card>
 
       <Modal 
@@ -330,7 +285,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                  <div className="text-lg font-black text-green-500 font-mono">{formatCurrency(report.totalBuyIn)}</div>
               </div>
            </div>
-           {renderLedgerList(false)}
+           <Ledger game={game} transactions={sortedTransactions} isCompact={false} />
         </div>
       </Modal>
     </div>

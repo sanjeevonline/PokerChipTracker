@@ -2,8 +2,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { GameSession, TransactionType, Player, Transaction } from '../types';
 import { Button, Card, Modal, Input, Select } from './UI';
+import { Ledger } from './Ledger';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
-import { Plus, ArrowRightLeft, History, AlertCircle, Save, UserPlus, LogOut, Users, X, HandCoins, ArrowUpRight, ArrowDownLeft, Maximize2, DollarSign } from 'lucide-react';
+// Added missing LogOut import
+import { Plus, ArrowRightLeft, History, AlertCircle, Maximize2, LogOut } from 'lucide-react';
 
 interface ActiveGameProps {
   game: GameSession;
@@ -45,7 +47,6 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
   }, [modalType, availablePlayers, playerToAddId]);
   
   const isMultiDenom = game.chipValue === undefined || game.chipValue === null;
-  const chipVal = game.chipValue || 1;
   const noArrowsClass = "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
 
   const isDuplicateName = allPlayers.some(
@@ -394,76 +395,23 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
              <Maximize2 size={14} />
            </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5 custom-scrollbar">
-          {game.transactions.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-neutral-600 text-[10px] font-bold uppercase tracking-widest italic opacity-40">Waiting for first move...</div>
-          ) : (
-            game.transactions.slice(0, 15).map(tx => {
-              const fromPlayer = game.players.find(p => p.id === tx.fromId);
-              const toPlayer = game.players.find(p => p.id === tx.toId);
-              const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
-              const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
-              let colorClass = 'text-blue-500';
-              if (tx.type === TransactionType.BUY_IN) colorClass = 'text-green-500';
-              else if (tx.type === TransactionType.CASH_OUT) colorClass = 'text-yellow-500';
-
-              return (
-                <div key={tx.id} className="flex items-center justify-between px-3 py-1.5 bg-black/30 rounded-lg border border-neutral-800/40 text-[10px] font-bold">
-                   <div className="flex items-center gap-3">
-                      <span className={`${colorClass} w-7 uppercase text-[9px] font-black tracking-tighter`}>{tx.type === TransactionType.BUY_IN ? 'IN' : tx.type === TransactionType.CASH_OUT ? 'OUT' : 'LOAN'}</span>
-                      <span className="text-neutral-400 truncate max-w-[120px] uppercase tracking-tight">
-                        {tx.type === TransactionType.BUY_IN ? `${toName}` : tx.type === TransactionType.CASH_OUT ? `${fromName}` : `${fromName} ➔ ${toName}`}
-                      </span>
-                   </div>
-                   <div className="text-white font-mono font-black">
-                      {game.chipValue ? (tx.amount / game.chipValue).toLocaleString() : formatCurrency(tx.amount)}
-                   </div>
-                </div>
-              );
-            })
-          )}
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <Ledger 
+            game={game} 
+            transactions={game.transactions.slice(0, 15)} 
+            isCompact={true} 
+          />
         </div>
       </div>
 
       {/* Ledger Modal */}
       <Modal isOpen={modalType === 'FULL_LEDGER'} onClose={closeModal} title="Session History" size="xl">
         <div className="space-y-4">
-           {game.transactions.length === 0 ? (
-             <div className="text-center py-16 text-neutral-600 font-bold uppercase tracking-widest">No entries found</div>
-           ) : (
-             <div className="space-y-2.5">
-               {[...game.transactions].sort((a,b) => b.timestamp - a.timestamp).map(tx => {
-                  const fromPlayer = game.players.find(p => p.id === tx.fromId);
-                  const toPlayer = game.players.find(p => p.id === tx.toId);
-                  const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
-                  const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
-                  return (
-                    <div key={tx.id} className="flex items-center justify-between p-4 bg-neutral-900/50 border border-neutral-800/60 rounded-2xl">
-                      <div className="flex items-center gap-4">
-                        <div className={`p-2.5 rounded-xl ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                          {tx.type === TransactionType.BUY_IN ? <DollarSign size={18} /> : tx.type === TransactionType.CASH_OUT ? <LogOut size={18} /> : <ArrowRightLeft size={18} />}
-                        </div>
-                        <div>
-                          <div className="text-sm font-bold text-neutral-200">
-                             {tx.type === TransactionType.BUY_IN ? `${toName} In` : tx.type === TransactionType.CASH_OUT ? `${fromName} Out` : `${fromName} to ${toName}`}
-                          </div>
-                          <div className="flex items-center gap-2.5 mt-1">
-                            <div className="text-[10px] text-neutral-600 font-black uppercase tracking-widest">
-                              {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </div>
-                            {tx.note && <span className="text-[9px] text-red-500/80 bg-red-950/20 px-2 py-0.5 rounded-lg border border-red-900/20 font-black uppercase tracking-tighter">{tx.note}</span>}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-base font-mono font-black text-white">{game.chipValue ? (tx.amount / game.chipValue).toLocaleString() : formatCurrency(tx.amount)}</div>
-                        {game.chipValue && <div className="text-[10px] text-neutral-500 font-mono font-bold mt-0.5">{formatCurrency(tx.amount)}</div>}
-                      </div>
-                    </div>
-                  );
-               })}
-             </div>
-           )}
+          <Ledger 
+            game={game} 
+            transactions={[...game.transactions].sort((a,b) => b.timestamp - a.timestamp)} 
+            isCompact={false} 
+          />
         </div>
       </Modal>
 

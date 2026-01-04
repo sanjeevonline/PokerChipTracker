@@ -170,7 +170,7 @@ CREATE POLICY "Users can manage players" ON players FOR ALL TO authenticated USI
             try {
               const g: Group = { id: crypto.randomUUID(), name: name.trim(), playerIds: [], createdAt: Date.now(), ownerId: session?.user?.id, sharedWithEmails: [] }; 
               await api.saveGroup(g); 
-              setGroups([...groups, g]); 
+              setGroups([g, ...groups]); 
               setSelectedGroupId(g.id); 
               setCurrentView(View.DASHBOARD); 
             } catch (e: any) {

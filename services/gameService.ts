@@ -88,7 +88,7 @@ export const api = {
            createdAt: d.created_at ? new Date(d.created_at).getTime() : Date.now(),
            ownerId: d.owner_id || d.ownerId,
            sharedWithEmails: d.shared_with_emails || d.sharedWithEmails || []
-        })).sort((a: Group, b: Group) => a.createdAt - b.createdAt);
+        })).sort((a: Group, b: Group) => b.createdAt - a.createdAt);
       }
       if (error) {
         console.error("Supabase error fetching groups:", error.message || JSON.stringify(error));
@@ -98,7 +98,8 @@ export const api = {
 
     try {
       const raw = localStorage.getItem(STORAGE_KEY_GROUPS);
-      return raw ? JSON.parse(raw) : [];
+      const groups = raw ? JSON.parse(raw) : [];
+      return groups.sort((a: Group, b: Group) => b.createdAt - a.createdAt);
     } catch (e) {
       return [];
     }
