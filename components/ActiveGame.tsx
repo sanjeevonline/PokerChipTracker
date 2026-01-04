@@ -23,8 +23,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
   onCancelEdit 
 }) => {
   const [modalType, setModalType] = useState<'BUY_IN' | 'TRANSFER' | 'CASH_OUT' | 'COUNT_CHIPS' | 'ADD_PLAYER' | 'FULL_LEDGER' | null>(null);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(game.players[0]?.id || '');
-  const [targetPlayerId, setTargetPlayerId] = useState<string>(game.players[1]?.id || '');
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
+  const [targetPlayerId, setTargetPlayerId] = useState<string>('');
   const [amount, setAmount] = useState<string>('');
   
   const [newPlayerMode, setNewPlayerMode] = useState<'EXISTING' | 'NEW'>('EXISTING');
@@ -74,7 +74,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
 
   const handleTransaction = () => {
     const inputValue = parseFloat(amount);
-    if (isNaN(inputValue) || inputValue <= 0) return;
+    if (isNaN(inputValue) || inputValue <= 0 || !selectedPlayerId) return;
 
     const txAmount = (typeof game.chipValue === 'number') ? inputValue * game.chipValue : inputValue;
     let type = TransactionType.TRANSFER;
@@ -95,6 +95,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
         isCashedOut: true,
         finalChips: 0
       };
+    } else if (modalType === 'TRANSFER') {
+      if (!targetPlayerId || fromId === toId) return;
     }
 
     const newTx: Transaction = {
@@ -225,6 +227,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
     setModalType(null);
     setAmount('');
     setNewPlayerName('');
+    setSelectedPlayerId('');
+    setTargetPlayerId('');
     setShowMismatchWarning(false);
     setIsCreating(false);
   };
@@ -254,66 +258,70 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
     if (type === 'CASH_OUT' && activePlayers.length <= 2) {
       return;
     }
-    if (type === 'TRANSFER') {
-      const other = game.players.find(p => p.id !== selectedPlayerId && !game.playerStates[p.id]?.isCashedOut);
-      if (other) setTargetPlayerId(other.id);
-    }
+    // Always clear when opening through general action buttons to ensure user explicitly picks
+    setSelectedPlayerId('');
+    setTargetPlayerId('');
     setModalType(type);
   };
 
   const isCashoutDisabled = activePlayers.length <= 2;
 
+  const playerOptions = useMemo(() => [
+    { value: '', label: 'CHOOSE PLAYER...' },
+    ...activePlayers.map(p => ({ value: p.id, label: p.name.toUpperCase() }))
+  ], [activePlayers]);
+
   return (
-    <div className="flex flex-col h-full max-h-[calc(100vh-120px)] overflow-hidden space-y-2">
+    <div className="flex flex-col h-full max-h-[calc(100vh-120px)] overflow-hidden space-y-3">
       {/* Tight Optimized Header */}
-      <div className="shrink-0 bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 shadow-md flex flex-col gap-2">
+      <div className="shrink-0 bg-neutral-900 border border-neutral-800 rounded-2xl p-3 shadow-xl flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <h2 className="text-[11px] font-black text-white leading-none mb-1 uppercase tracking-tight">
-              {game.endTime ? 'EDIT MODE' : 'TABLE ACTIVE'}
+            <h2 className="text-[10px] font-black text-white/40 leading-none mb-1.5 uppercase tracking-widest">
+              {game.endTime ? 'EDIT MODE' : 'LIVE TABLE'}
             </h2>
-            <div className="flex items-center gap-1.5 text-[9px] text-white/50 font-bold uppercase whitespace-nowrap overflow-hidden">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse"></span>
-              <span>BANK: <span className="text-green-500">{formatCurrency(report.totalBuyIn)}</span></span>
+            <div className="flex items-center gap-2 text-xs text-white/80 font-black uppercase whitespace-nowrap overflow-hidden">
+              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+              <span>BANK POT: <span className="text-green-500 font-mono">{formatCurrency(report.totalBuyIn)}</span></span>
             </div>
           </div>
           
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Button onClick={() => setModalType('ADD_PLAYER')} variant="secondary" size="sm" className="py-1 text-[9px] h-7 px-3 uppercase font-black tracking-widest">+ SEAT</Button>
-            <Button onClick={openCountModal} variant="danger" size="sm" className="py-1 text-[9px] h-7 px-3 font-black uppercase tracking-widest">
+          <div className="flex items-center gap-2 shrink-0">
+            <Button onClick={() => setModalType('ADD_PLAYER')} variant="secondary" size="sm" className="h-9 px-4 uppercase font-black tracking-widest">+ SEAT</Button>
+            <Button onClick={openCountModal} variant="danger" size="sm" className="h-9 px-4 font-black uppercase tracking-widest">
                {game.endTime ? 'SAVE' : 'SETTLE'}
             </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5 bg-black/40 p-1 rounded-lg border border-neutral-800/50">
+        <div className="grid grid-cols-3 gap-2 bg-black/40 p-1 rounded-xl border border-neutral-800/50">
           <button 
             onClick={() => openPlayerAction('BUY_IN')} 
-            className="flex-1 py-1.5 px-1 rounded-md bg-green-600/10 text-green-400 hover:bg-green-600 hover:text-white transition-all text-[10px] font-black border border-green-600/20 flex flex-col items-center justify-center gap-0.5 shadow-sm"
+            className="flex-1 py-2 px-1 rounded-lg bg-green-600/10 text-green-400 hover:bg-green-600 hover:text-white transition-all text-[11px] font-black border border-green-600/20 flex flex-col items-center justify-center gap-1 shadow-sm"
           >
-            <Plus size={14} />
+            <Plus size={16} />
             <span>BUY IN</span>
           </button>
           <button 
             onClick={() => openPlayerAction('TRANSFER')} 
-            className="flex-1 py-1.5 px-1 rounded-md bg-blue-600/10 text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-[10px] font-black border border-blue-600/20 flex flex-col items-center justify-center gap-0.5 shadow-sm"
+            className="flex-1 py-2 px-1 rounded-lg bg-blue-600/10 text-blue-400 hover:bg-blue-600 hover:text-white transition-all text-[11px] font-black border border-blue-600/20 flex flex-col items-center justify-center gap-1 shadow-sm"
           >
-            <ArrowRightLeft size={14} />
+            <ArrowRightLeft size={16} />
             <span>LOAN</span>
           </button>
           <button 
             onClick={() => openPlayerAction('CASH_OUT')} 
             disabled={isCashoutDisabled}
-            className={`flex-1 py-1.5 px-1 rounded-md text-[10px] font-black border transition-all flex flex-col items-center justify-center gap-0.5 shadow-sm ${isCashoutDisabled ? 'bg-neutral-800 text-neutral-600 border-neutral-700 cursor-not-allowed' : 'bg-yellow-600/10 text-yellow-400 hover:bg-yellow-600 hover:text-white border-yellow-600/20'}`}
+            className={`flex-1 py-2 px-1 rounded-lg text-[11px] font-black border transition-all flex flex-col items-center justify-center gap-1 shadow-sm ${isCashoutDisabled ? 'bg-neutral-800 text-neutral-600 border-neutral-700 cursor-not-allowed' : 'bg-yellow-600/10 text-yellow-400 hover:bg-yellow-600 hover:text-white border-yellow-600/20'}`}
           >
-            <LogOut size={14} />
+            <LogOut size={16} />
             <span>OUT</span>
           </button>
         </div>
       </div>
 
-      {/* Responsive Player Grid - Updated to show single column on mobile for up to 12 players */}
-      <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1.5 pr-1 custom-scrollbar pb-1">
+      {/* Optimized Player Grid */}
+      <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 pr-1 custom-scrollbar pb-2">
         {activePlayers.map(player => {
           const stats = report.players.find(p => p.playerId === player.id);
           if (!stats) return null;
@@ -325,39 +333,39 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
             <div 
               key={player.id} 
               onClick={() => setSelectedPlayerId(player.id)}
-              className={`relative group transition-all rounded-lg border flex flex-col cursor-pointer h-[82px] overflow-hidden ${selectedPlayerId === player.id ? 'bg-neutral-800 border-red-600 ring-1 ring-red-600/20 shadow-md' : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700 shadow-sm'}`}
+              className={`relative group transition-all rounded-xl border flex flex-col cursor-pointer h-[94px] overflow-hidden ${selectedPlayerId === player.id ? 'bg-neutral-800 border-red-600 ring-1 ring-red-600/20 shadow-lg' : 'bg-neutral-900/80 border-neutral-800 hover:border-neutral-700 shadow-sm'}`}
             >
-              <div className="p-1.5 flex flex-col h-full gap-0.5">
+              <div className="p-2.5 flex flex-col h-full gap-1.5">
                 <div className="flex items-start justify-between min-w-0">
-                  <h3 className={`text-[10px] font-black truncate leading-tight w-full tracking-tight ${selectedPlayerId === player.id ? 'text-white' : 'text-neutral-400'}`}>
-                    {player.name.toUpperCase()}
+                  <h3 className={`text-[11px] font-black truncate leading-tight w-full tracking-tight uppercase ${selectedPlayerId === player.id ? 'text-white' : 'text-neutral-400'}`}>
+                    {player.name}
                   </h3>
                 </div>
 
-                <div className="flex items-center gap-1 flex-1">
-                  {/* Left Half: Total Chips & Value */}
-                  <div className="flex-1 flex flex-col items-center justify-center h-full bg-black/30 rounded border border-neutral-800/20 px-0.5 overflow-hidden">
-                    <span className="text-sm font-mono font-black text-white leading-none tracking-tighter">
+                <div className="flex items-center gap-2 flex-1">
+                  {/* Left: Total Chips & Value */}
+                  <div className="flex-1 flex flex-col items-center justify-center h-full bg-black/40 rounded-lg border border-neutral-800/40 px-1 overflow-hidden">
+                    <span className="text-base font-mono font-black text-white leading-none tracking-tighter">
                       {chipsCount !== null ? chipsCount.toLocaleString() : formatCurrency(stats.netInvested)}
                     </span>
                     {chipsCount !== null && (
-                      <span className="text-[9px] text-white/70 font-mono font-bold leading-none mt-1 truncate w-full text-center">
+                      <span className="text-[10px] text-white/40 font-mono font-bold leading-none mt-1.5 truncate w-full text-center">
                         {formatCurrency(stats.netInvested)}
                       </span>
                     )}
                   </div>
 
-                  {/* Right Half: Full LENT / OWES Labels */}
-                  <div className="flex-1 flex flex-col justify-around h-full tracking-tighter pl-1">
-                    <div className="flex items-center justify-between gap-1 text-green-500 border-b border-neutral-800/30 pb-0.5">
-                      <span className="text-[9px] font-black uppercase opacity-60">LENT</span>
-                      <span className="text-[11px] font-mono font-black truncate">
+                  {/* Right: Loan Summary Labels */}
+                  <div className="flex-1 flex flex-col justify-around h-full tracking-tighter pl-1.5 py-0.5">
+                    <div className="flex items-center justify-between gap-1 text-green-500/80 border-b border-neutral-800/50 pb-1">
+                      <span className="text-[9px] font-black uppercase opacity-50 tracking-widest">LNT</span>
+                      <span className="text-xs font-mono font-black truncate">
                         {stats.transfersOut > 0 ? (game.chipValue ? Math.round(stats.transfersOut / game.chipValue) : formatCurrency(stats.transfersOut)) : '0'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-1 text-red-500 pt-0.5">
-                      <span className="text-[9px] font-black uppercase opacity-60">OWES</span>
-                      <span className="text-[11px] font-mono font-black truncate">
+                    <div className="flex items-center justify-between gap-1 text-red-500/80 pt-1">
+                      <span className="text-[9px] font-black uppercase opacity-50 tracking-widest">OWE</span>
+                      <span className="text-xs font-mono font-black truncate">
                         {stats.transfersIn > 0 ? (game.chipValue ? Math.round(stats.transfersIn / game.chipValue) : formatCurrency(stats.transfersIn)) : '0'}
                       </span>
                     </div>
@@ -366,44 +374,44 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
               </div>
               
               {selectedPlayerId === player.id && (
-                <div className="absolute bottom-0 left-0 w-full h-[1.5px] bg-red-600"></div>
+                <div className="absolute bottom-0 left-0 w-full h-1 bg-red-600 shadow-[0_-2px_8px_rgba(220,38,38,0.3)]"></div>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Ledger View */}
-      <div className="shrink-0 h-28 bg-neutral-900/50 border border-neutral-800 rounded-xl overflow-hidden flex flex-col">
-        <div className="px-3 py-1 bg-neutral-800/50 border-b border-neutral-800 flex justify-between items-center">
-           <span className="text-[9px] font-black text-white/30 uppercase tracking-widest flex items-center gap-1.5">
-             <History size={10} /> RECENT LOGS
+      {/* Recent Logs Section */}
+      <div className="shrink-0 h-32 bg-neutral-900/60 border border-neutral-800 rounded-2xl overflow-hidden flex flex-col shadow-inner backdrop-blur-sm">
+        <div className="px-4 py-2 bg-neutral-800/40 border-b border-neutral-800 flex justify-between items-center">
+           <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] flex items-center gap-2">
+             <History size={12} className="text-red-600/50" /> RECENT ACTIVITY
            </span>
            <button 
              onClick={() => setModalType('FULL_LEDGER')}
-             className="p-1 text-neutral-500 hover:text-white rounded hover:bg-neutral-800 transition-colors"
+             className="p-1.5 text-neutral-500 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors"
            >
-             <Maximize2 size={12} />
+             <Maximize2 size={14} />
            </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-1 space-y-1 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5 custom-scrollbar">
           {game.transactions.length === 0 ? (
-            <div className="h-full flex items-center justify-center text-neutral-600 text-[10px] italic">Table is quiet...</div>
+            <div className="h-full flex items-center justify-center text-neutral-600 text-[10px] font-bold uppercase tracking-widest italic opacity-40">Waiting for first move...</div>
           ) : (
             game.transactions.slice(0, 15).map(tx => {
               const fromPlayer = game.players.find(p => p.id === tx.fromId);
               const toPlayer = game.players.find(p => p.id === tx.toId);
               const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
               const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
-              let colorClass = 'text-blue-400';
+              let colorClass = 'text-blue-500';
               if (tx.type === TransactionType.BUY_IN) colorClass = 'text-green-500';
               else if (tx.type === TransactionType.CASH_OUT) colorClass = 'text-yellow-500';
 
               return (
-                <div key={tx.id} className="flex items-center justify-between px-2 py-0.5 bg-black/20 rounded border border-neutral-800/30 text-[9px] font-bold">
-                   <div className="flex items-center gap-2">
-                      <span className={`${colorClass} w-6 uppercase text-[8px] font-black`}>{tx.type === TransactionType.BUY_IN ? 'IN' : tx.type === TransactionType.CASH_OUT ? 'OUT' : 'LOAN'}</span>
-                      <span className="text-neutral-300 truncate max-w-[120px] uppercase">
+                <div key={tx.id} className="flex items-center justify-between px-3 py-1.5 bg-black/30 rounded-lg border border-neutral-800/40 text-[10px] font-bold">
+                   <div className="flex items-center gap-3">
+                      <span className={`${colorClass} w-7 uppercase text-[9px] font-black tracking-tighter`}>{tx.type === TransactionType.BUY_IN ? 'IN' : tx.type === TransactionType.CASH_OUT ? 'OUT' : 'LOAN'}</span>
+                      <span className="text-neutral-400 truncate max-w-[120px] uppercase tracking-tight">
                         {tx.type === TransactionType.BUY_IN ? `${toName}` : tx.type === TransactionType.CASH_OUT ? `${fromName}` : `${fromName} ➔ ${toName}`}
                       </span>
                    </div>
@@ -417,39 +425,39 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
         </div>
       </div>
 
-      {/* Modals */}
-      <Modal isOpen={modalType === 'FULL_LEDGER'} onClose={closeModal} title="Session Transaction History" size="xl">
+      {/* Ledger Modal */}
+      <Modal isOpen={modalType === 'FULL_LEDGER'} onClose={closeModal} title="Session History" size="xl">
         <div className="space-y-4">
            {game.transactions.length === 0 ? (
-             <div className="text-center py-12 text-neutral-600">No transactions recorded yet.</div>
+             <div className="text-center py-16 text-neutral-600 font-bold uppercase tracking-widest">No entries found</div>
            ) : (
-             <div className="space-y-2">
+             <div className="space-y-2.5">
                {[...game.transactions].sort((a,b) => b.timestamp - a.timestamp).map(tx => {
                   const fromPlayer = game.players.find(p => p.id === tx.fromId);
                   const toPlayer = game.players.find(p => p.id === tx.toId);
                   const fromName = tx.fromId === 'BANK' ? 'Bank' : fromPlayer?.name || 'Unknown';
                   const toName = tx.toId === 'BANK' ? 'Bank' : toPlayer?.name || 'Unknown';
                   return (
-                    <div key={tx.id} className="flex items-center justify-between p-3 bg-neutral-900/40 border border-neutral-800/50 rounded-xl">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
-                          {tx.type === TransactionType.BUY_IN ? <DollarSign size={16} /> : tx.type === TransactionType.CASH_OUT ? <LogOut size={16} /> : <ArrowRightLeft size={16} />}
+                    <div key={tx.id} className="flex items-center justify-between p-4 bg-neutral-900/50 border border-neutral-800/60 rounded-2xl">
+                      <div className="flex items-center gap-4">
+                        <div className={`p-2.5 rounded-xl ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                          {tx.type === TransactionType.BUY_IN ? <DollarSign size={18} /> : tx.type === TransactionType.CASH_OUT ? <LogOut size={18} /> : <ArrowRightLeft size={18} />}
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-neutral-200">
-                             {tx.type === TransactionType.BUY_IN ? `${toName} bought in from Bank` : tx.type === TransactionType.CASH_OUT ? `${fromName} cashed out to Bank` : `${fromName} sent to ${toName}`}
+                          <div className="text-sm font-bold text-neutral-200">
+                             {tx.type === TransactionType.BUY_IN ? `${toName} In` : tx.type === TransactionType.CASH_OUT ? `${fromName} Out` : `${fromName} to ${toName}`}
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <div className="text-[10px] text-neutral-600 font-bold uppercase tracking-wider">
-                              {new Date(tx.timestamp).toLocaleTimeString()}
+                          <div className="flex items-center gap-2.5 mt-1">
+                            <div className="text-[10px] text-neutral-600 font-black uppercase tracking-widest">
+                              {new Date(tx.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            {tx.note && <span className="text-[9px] text-red-400 bg-red-950/20 px-1.5 py-0.5 rounded border border-red-900/30">{tx.note}</span>}
+                            {tx.note && <span className="text-[9px] text-red-500/80 bg-red-950/20 px-2 py-0.5 rounded-lg border border-red-900/20 font-black uppercase tracking-tighter">{tx.note}</span>}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-sm font-mono font-black text-white">{game.chipValue ? (tx.amount / game.chipValue).toLocaleString() : formatCurrency(tx.amount)}</div>
-                        {game.chipValue && <div className="text-[10px] text-neutral-500 font-mono">{formatCurrency(tx.amount)}</div>}
+                        <div className="text-base font-mono font-black text-white">{game.chipValue ? (tx.amount / game.chipValue).toLocaleString() : formatCurrency(tx.amount)}</div>
+                        {game.chipValue && <div className="text-[10px] text-neutral-500 font-mono font-bold mt-0.5">{formatCurrency(tx.amount)}</div>}
                       </div>
                     </div>
                   );
@@ -459,89 +467,90 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
         </div>
       </Modal>
 
+      {/* Transaction Modals */}
       <Modal isOpen={modalType === 'BUY_IN'} onClose={closeModal} title="Buy In">
-        <div className="space-y-4">
-          <Select label="Player" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
-          <Input label={isMultiDenom ? "Amount ($)" : "Amount"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
-          <Button className="w-full py-2.5" onClick={handleTransaction}>Confirm Buy In</Button>
+        <div className="space-y-5">
+          <Select label="Seat" options={playerOptions} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
+          <Input label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
+          <Button className="w-full py-4" onClick={handleTransaction} disabled={!selectedPlayerId || !amount || parseFloat(amount) <= 0}>Confirm Entry</Button>
         </div>
       </Modal>
 
-      <Modal isOpen={modalType === 'CASH_OUT'} onClose={closeModal} title="Cash Out">
-        <div className="space-y-4">
-          <Select label="Player" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
-          <Input label={isMultiDenom ? "Amount ($)" : "Amount"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
-          <Button className="w-full py-2.5" variant="secondary" onClick={handleTransaction}>Confirm Cash Out</Button>
+      <Modal isOpen={modalType === 'CASH_OUT'} onClose={closeModal} title="Mid-Game Out">
+        <div className="space-y-5">
+          <Select label="Seat" options={playerOptions} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
+          <Input label={isMultiDenom ? "Cash Out ($)" : "Chips Out"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
+          <Button className="w-full py-4" variant="secondary" onClick={handleTransaction} disabled={!selectedPlayerId || !amount || parseFloat(amount) < 0}>Release Chips</Button>
         </div>
       </Modal>
 
-      <Modal isOpen={modalType === 'TRANSFER'} onClose={closeModal} title="Transfer (Loan)">
-        <div className="space-y-4">
+      <Modal isOpen={modalType === 'TRANSFER'} onClose={closeModal} title="Player Loan">
+        <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4">
-            <Select label="From" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
-            <Select label="To" options={activePlayers.map(p => ({ value: p.id, label: p.name }))} value={targetPlayerId} onChange={(e) => setTargetPlayerId(e.target.value)} />
+            <Select label="From" options={playerOptions} value={selectedPlayerId} onChange={(e) => setSelectedPlayerId(e.target.value)} />
+            <Select label="To" options={playerOptions} value={targetPlayerId} onChange={(e) => setTargetPlayerId(e.target.value)} />
           </div>
-          <Input label={isMultiDenom ? "Amount ($)" : "Amount"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
-          <Button className="w-full py-2.5" onClick={handleTransaction} disabled={selectedPlayerId === targetPlayerId}>Confirm Loan</Button>
+          <Input label={isMultiDenom ? "Amount ($)" : "Amount (Chips)"} type="number" step={isMultiDenom ? "0.01" : "1"} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" autoFocus className={noArrowsClass} />
+          <Button className="w-full py-4" onClick={handleTransaction} disabled={!selectedPlayerId || !targetPlayerId || selectedPlayerId === targetPlayerId || !amount || parseFloat(amount) <= 0}>Approve Loan</Button>
         </div>
       </Modal>
 
       <Modal isOpen={modalType === 'ADD_PLAYER'} onClose={closeModal} title="Seat New Player">
-        <div className="space-y-4">
-           <div className="flex bg-neutral-900 rounded-lg p-1 border border-neutral-800">
-             <button className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${newPlayerMode === 'EXISTING' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500'}`} onClick={() => setNewPlayerMode('EXISTING')}>EXISTING</button>
-             <button className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${newPlayerMode === 'NEW' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500'}`} onClick={() => setNewPlayerMode('NEW')}>NEW</button>
+        <div className="space-y-5">
+           <div className="flex bg-neutral-900 rounded-xl p-1.5 border border-neutral-800">
+             <button className={`flex-1 py-2 text-xs font-black rounded-lg transition-all tracking-widest ${newPlayerMode === 'EXISTING' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500'}`} onClick={() => setNewPlayerMode('EXISTING')}>GROUP</button>
+             <button className={`flex-1 py-2 text-xs font-black rounded-lg transition-all tracking-widest ${newPlayerMode === 'NEW' ? 'bg-neutral-800 text-white shadow' : 'text-neutral-500'}`} onClick={() => setNewPlayerMode('NEW')}>GUEST</button>
            </div>
            {newPlayerMode === 'EXISTING' ? (
              availablePlayers.length > 0 ? (
-                <Select label="Select" options={availablePlayers.map(p => ({ value: p.id, label: p.name }))} value={playerToAddId} onChange={(e) => setPlayerToAddId(e.target.value)} />
+                <Select label="Roster Member" options={[{ value: '', label: 'SELECT MEMBER...' }, ...availablePlayers.map(p => ({ value: p.id, label: p.name.toUpperCase() }))]} value={playerToAddId} onChange={(e) => setPlayerToAddId(e.target.value)} />
              ) : (
-                <p className="text-center text-neutral-500 py-2 text-xs">No available group members.</p>
+                <p className="text-center text-neutral-600 py-6 text-xs font-bold uppercase tracking-widest">Everyone is seated.</p>
              )
            ) : (
              <Input 
-               label="Name" 
-               placeholder="Enter name" 
+               label="Display Name" 
+               placeholder="PusherMan" 
                value={newPlayerName} 
                onChange={(e) => setNewPlayerName(e.target.value)} 
                autoFocus 
-               error={isDuplicateName ? "This player already exists in the group roster." : undefined}
+               error={isDuplicateName ? "Name already in use." : undefined}
              />
            )}
-           <Input label={isMultiDenom ? "Buy-In ($)" : "Buy-In"} type="number" step={isMultiDenom ? "0.01" : "1"} placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} className={noArrowsClass} />
-           <Button className="w-full py-2.5" onClick={handleAddPlayer} disabled={(newPlayerMode === 'EXISTING' && !playerToAddId) || (newPlayerMode === 'NEW' && (!newPlayerName.trim() || isDuplicateName || isCreating))}>Seat Player</Button>
+           <Input label={isMultiDenom ? "Buy-In ($)" : "Chips Buy-In"} type="number" step={isMultiDenom ? "0.01" : "1"} placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} className={noArrowsClass} />
+           <Button className="w-full py-4" onClick={handleAddPlayer} disabled={(newPlayerMode === 'EXISTING' && !playerToAddId) || (newPlayerMode === 'NEW' && (!newPlayerName.trim() || isDuplicateName || isCreating))}>Add to Table</Button>
         </div>
       </Modal>
 
-      <Modal isOpen={modalType === 'COUNT_CHIPS'} onClose={handleCancelFinish} title={game.endTime ? "Edit Count" : "Count Final Stacks"}>
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-          <div className="grid grid-cols-2 gap-2 bg-neutral-900/50 p-4 rounded-lg border border-neutral-800">
-             <div className="text-center border-r border-neutral-800">
-                <div className="text-[10px] text-white/50 uppercase tracking-wider mb-1 font-black">Target</div>
-                <div className="text-lg font-black text-white font-mono">{isMultiDenom ? formatCurrency(report.totalBuyIn) : targetChips.toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
+      <Modal isOpen={modalType === 'COUNT_CHIPS'} onClose={handleCancelFinish} title={game.endTime ? "Verify Count" : "Final Settlement"}>
+        <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
+          <div className="grid grid-cols-2 gap-3 bg-neutral-900/80 p-5 rounded-2xl border border-neutral-800/60 shadow-inner">
+             <div className="text-center border-r border-neutral-800/50 pr-3">
+                <div className="text-[10px] text-white/40 uppercase tracking-widest mb-1.5 font-black">Target</div>
+                <div className="text-xl font-black text-white font-mono">{isMultiDenom ? formatCurrency(report.totalBuyIn) : targetChips.toLocaleString(undefined, { maximumFractionDigits: 1 })}</div>
              </div>
-             <div className="text-center">
-                <div className="text-[10px] text-white/50 uppercase tracking-wider mb-1 font-black">Actual</div>
-                <div className={`text-lg font-black font-mono ${discrepancy === 0 ? 'text-green-500' : 'text-yellow-400'}`}>
+             <div className="text-center pl-3">
+                <div className="text-[10px] text-white/40 uppercase tracking-widest mb-1.5 font-black">Actual</div>
+                <div className={`text-xl font-black font-mono ${discrepancy === 0 ? 'text-green-500' : 'text-red-500'}`}>
                    {isMultiDenom ? formatCurrency(totalValueRounded) : totalRawCount.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                 </div>
              </div>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-3.5 pt-2">
             {activePlayers.map(p => (
-              <div key={p.id} className="flex items-center justify-between gap-4 py-2 border-b border-neutral-900 last:border-0 group">
+              <div key={p.id} className="flex items-center justify-between gap-4 py-2 group">
                  <div className="flex-1 min-w-0">
-                    <label className="text-sm font-black text-white truncate block uppercase">
-                      {p.name || 'Unknown Player'}
+                    <label className="text-xs font-black text-white truncate block uppercase tracking-tight">
+                      {p.name}
                     </label>
-                    <div className="text-[9px] text-neutral-500 font-bold tracking-widest mt-0.5">FINAL STACK</div>
+                    <div className="text-[9px] text-neutral-500 font-bold tracking-widest mt-0.5 uppercase">STACK COUNT</div>
                  </div>
                  <div className="shrink-0">
                    <Input 
                      type="number" 
                      step={isMultiDenom ? "0.01" : "1"}
-                     className={`w-32 text-right font-mono py-1.5 h-10 bg-neutral-950 font-black border-neutral-800 focus:border-red-600 ${noArrowsClass}`}
+                     className={`w-36 text-right font-mono py-2.5 h-12 bg-neutral-950/80 font-black border-neutral-800 focus:border-red-600 text-base ${noArrowsClass}`}
                      placeholder="0"
                      value={counts[p.id] || ''}
                      onChange={(e) => handleCountChange(p.id, e.target.value)}
@@ -552,19 +561,20 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
           </div>
 
           {showMismatchWarning && discrepancy !== 0 && (
-            <div className="mt-4 p-3 bg-red-950 border border-red-500/50 rounded-lg flex items-start gap-3">
-               <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+            <div className="mt-4 p-4 bg-red-950/30 border border-red-500/40 rounded-2xl flex items-start gap-3.5 animate-in shake duration-300">
+               <AlertCircle className="text-red-500 shrink-0 mt-1" size={20} />
                <div className="text-xs">
-                  <div className="font-black text-white uppercase tracking-tight text-[10px]">Ledger Mismatch Detected</div>
-                  <div className="text-red-200 mt-1 font-bold">Difference: <span className="font-mono text-white underline decoration-red-500 decoration-2">{isMultiDenom ? formatCurrency(discrepancy) : `${chipsDiscrepancy}`}</span></div>
+                  <div className="font-black text-white uppercase tracking-tight text-[11px] mb-1">Ledger Conflict Detected</div>
+                  <div className="text-red-300 font-bold">Difference: <span className="font-mono text-white underline decoration-red-600 decoration-4 underline-offset-4">{isMultiDenom ? formatCurrency(discrepancy) : `${chipsDiscrepancy}`}</span></div>
+                  <div className="mt-2 text-red-400/80 leading-relaxed font-medium italic">Counts must match the ledger to settle cleanly. Force settle only if errors are known.</div>
                </div>
             </div>
           )}
           
-          <div className="pt-4 border-t border-neutral-800 flex gap-3 sticky bottom-0 bg-neutral-950 py-2">
-             <Button className="flex-1" variant="secondary" onClick={handleCancelFinish}>Cancel</Button>
-             <Button className="flex-[2]" variant={showMismatchWarning && discrepancy !== 0 ? 'secondary' : 'danger'} onClick={handleFinishAttempt}>
-                {showMismatchWarning && discrepancy !== 0 ? 'FORCE SETTLE' : 'COMPLETE'}
+          <div className="pt-5 border-t border-neutral-900 flex flex-col sm:flex-row gap-3 sticky bottom-0 bg-neutral-950 py-3">
+             <Button className="w-full order-2 sm:order-1" variant="secondary" onClick={handleCancelFinish}>Back to Table</Button>
+             <Button className="w-full order-1 sm:order-2 py-4" variant={showMismatchWarning && discrepancy !== 0 ? 'secondary' : 'danger'} onClick={handleFinishAttempt}>
+                {showMismatchWarning && discrepancy !== 0 ? 'FORCE COMPLETE' : 'SETTLE SESSION'}
              </Button>
           </div>
         </div>
