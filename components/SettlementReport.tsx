@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState } from 'react';
-import { GameSession } from '../types';
+import { GameSession, TransactionType } from '../types';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
 import { Button, Card, Modal } from './UI';
 import { Ledger } from './Ledger';
@@ -11,9 +11,10 @@ interface SettlementReportProps {
   game: GameSession;
   onBack: () => void;
   onEdit: () => void;
+  onUpdateGame?: (game: GameSession) => void;
 }
 
-export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack, onEdit }) => {
+export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack, onEdit, onUpdateGame }) => {
   const [isLedgerExpanded, setIsLedgerExpanded] = useState(false);
   const report = useMemo(() => calculateSettlement(game), [game]);
   
@@ -64,6 +65,33 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
   const sortedTransactions = [...game.transactions].sort((a, b) => b.timestamp - a.timestamp);
   const isFixedValue = typeof game.chipValue === 'number';
   const chipVal = game.chipValue || 1;
+
+  const handleDeleteTransaction = (txId: string) => {
+    if (!onUpdateGame) return;
+    const txToDelete = game.transactions.find(t => t.id === txId);
+    if (!txToDelete) return;
+
+    let updatedPlayerStates = { ...game.playerStates };
+
+    // Post-game delete logic: Reverting final chips if a final settlement entry is deleted
+    if (txToDelete.type === TransactionType.CASH_OUT && txToDelete.note === 'Final Settlement') {
+      const pid = txToDelete.fromId;
+      if (updatedPlayerStates[pid]) {
+        updatedPlayerStates[pid] = {
+          ...updatedPlayerStates[pid],
+          finalChips: 0 // Reset final chips if the settle entry is voided
+        };
+      }
+    }
+
+    const updatedGame = {
+      ...game,
+      transactions: game.transactions.filter(t => t.id !== txId),
+      playerStates: updatedPlayerStates
+    };
+
+    onUpdateGame(updatedGame);
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12">
@@ -265,7 +293,12 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
           </button>
         }
       >
-        <Ledger game={game} transactions={sortedTransactions} isCompact={true} />
+        <Ledger 
+          game={game} 
+          transactions={sortedTransactions} 
+          isCompact={true} 
+          onDeleteTransaction={handleDeleteTransaction}
+        />
       </Card>
 
       <Modal 
@@ -285,7 +318,12 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
                  <div className="text-lg font-black text-green-500 font-mono">{formatCurrency(report.totalBuyIn)}</div>
               </div>
            </div>
-           <Ledger game={game} transactions={sortedTransactions} isCompact={false} />
+           <Ledger 
+             game={game} 
+             transactions={sortedTransactions} 
+             isCompact={false} 
+             onDeleteTransaction={handleDeleteTransaction}
+           />
         </div>
       </Modal>
     </div>

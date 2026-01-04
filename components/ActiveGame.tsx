@@ -119,6 +119,34 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
     closeModal();
   };
 
+  const handleDeleteTransaction = (txId: string) => {
+    const txToDelete = game.transactions.find(t => t.id === txId);
+    if (!txToDelete) return;
+
+    let updatedPlayerStates = { ...game.playerStates };
+
+    // If we're deleting a cashout, we likely need to mark the player as active again
+    if (txToDelete.type === TransactionType.CASH_OUT && txToDelete.fromId !== 'BANK') {
+      const pid = txToDelete.fromId;
+      // Re-enable player if this was their cashout entry
+      if (updatedPlayerStates[pid]) {
+        updatedPlayerStates[pid] = {
+          ...updatedPlayerStates[pid],
+          isCashedOut: false,
+          finalChips: null
+        };
+      }
+    }
+
+    const updatedGame = {
+      ...game,
+      transactions: game.transactions.filter(t => t.id !== txId),
+      playerStates: updatedPlayerStates
+    };
+
+    onUpdateGame(updatedGame);
+  };
+
   const handleAddPlayer = async () => {
     let player: Player | undefined;
     if (newPlayerMode === 'EXISTING') {
@@ -382,8 +410,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
         })}
       </div>
 
-      {/* Recent Logs Section */}
-      <div className="shrink-0 h-32 bg-neutral-900/60 border border-neutral-800 rounded-2xl overflow-hidden flex flex-col shadow-inner backdrop-blur-sm">
+      {/* Recent Logs Section - Fixed Height to show more entries and removed backdrop-blur to fix Modal clipping */}
+      <div className="shrink-0 h-56 bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden flex flex-col shadow-inner">
         <div className="px-4 py-2 bg-neutral-800/40 border-b border-neutral-800 flex justify-between items-center">
            <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] flex items-center gap-2">
              <History size={12} className="text-red-600/50" /> RECENT ACTIVITY
@@ -399,7 +427,8 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
           <Ledger 
             game={game} 
             transactions={game.transactions.slice(0, 15)} 
-            isCompact={true} 
+            isCompact={true}
+            onDeleteTransaction={handleDeleteTransaction}
           />
         </div>
       </div>
@@ -411,6 +440,7 @@ export const ActiveGame: React.FC<ActiveGameProps> = ({
             game={game} 
             transactions={[...game.transactions].sort((a,b) => b.timestamp - a.timestamp)} 
             isCompact={false} 
+            onDeleteTransaction={handleDeleteTransaction}
           />
         </div>
       </Modal>

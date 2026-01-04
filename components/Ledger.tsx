@@ -1,16 +1,19 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Transaction, TransactionType, GameSession } from '../types';
 import { formatCurrency } from '../services/gameService';
-import { DollarSign, LogOut, ArrowRightLeft } from 'lucide-react';
+import { DollarSign, LogOut, ArrowRightLeft, Trash2, AlertTriangle, X } from 'lucide-react';
+import { Button, Modal } from './UI';
 
 interface LedgerProps {
   game: GameSession;
   transactions: Transaction[];
   isCompact?: boolean;
+  onDeleteTransaction?: (txId: string) => void;
 }
 
-export const Ledger: React.FC<LedgerProps> = ({ game, transactions, isCompact = false }) => {
+export const Ledger: React.FC<LedgerProps> = ({ game, transactions, isCompact = false, onDeleteTransaction }) => {
+  const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
   const isFixedValue = typeof game.chipValue === 'number';
   const chipVal = game.chipValue || 1;
 
@@ -27,6 +30,18 @@ export const Ledger: React.FC<LedgerProps> = ({ game, transactions, isCompact = 
     return playerBuyIns[0]?.id === tx.id ? 'INITIAL' : 'EXTRA';
   };
 
+  const handleDeleteClick = (e: React.MouseEvent, txId: string) => {
+    e.stopPropagation();
+    setDeletingTxId(txId);
+  };
+
+  const confirmDelete = () => {
+    if (deletingTxId && onDeleteTransaction) {
+      onDeleteTransaction(deletingTxId);
+      setDeletingTxId(null);
+    }
+  };
+
   if (transactions.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-neutral-600 text-[10px] font-bold uppercase tracking-widest italic opacity-40">
@@ -34,6 +49,8 @@ export const Ledger: React.FC<LedgerProps> = ({ game, transactions, isCompact = 
       </div>
     );
   }
+
+  const txToDelete = transactions.find(t => t.id === deletingTxId);
 
   return (
     <div className={`space-y-1.5 ${isCompact ? 'p-1.5' : 'space-y-2.5'}`}>
@@ -61,7 +78,7 @@ export const Ledger: React.FC<LedgerProps> = ({ game, transactions, isCompact = 
 
         if (isCompact) {
           return (
-            <div key={tx.id} className="flex items-center justify-between px-3 py-1.5 bg-black/30 rounded-lg border border-neutral-800/40 text-[10px] font-bold">
+            <div key={tx.id} className="flex items-center justify-between px-3 py-1.5 bg-black/30 rounded-lg border border-neutral-800/40 text-[10px] font-bold group relative">
                <div className="flex items-center gap-3">
                   <span className={`${colorClass} w-9 uppercase text-[8px] font-black tracking-tighter shrink-0`}>
                     {typeLabel}
@@ -70,15 +87,25 @@ export const Ledger: React.FC<LedgerProps> = ({ game, transactions, isCompact = 
                     {tx.type === TransactionType.BUY_IN ? `${toName}` : tx.type === TransactionType.CASH_OUT ? `${fromName}` : `${fromName} ➔ ${toName}`}
                   </span>
                </div>
-               <div className="text-white font-mono font-black shrink-0">
-                  {isFixedValue ? Math.round(tx.amount / chipVal).toLocaleString() : formatCurrency(tx.amount)}
+               <div className="flex items-center gap-2">
+                 <div className="text-white font-mono font-black shrink-0">
+                    {isFixedValue ? Math.round(tx.amount / chipVal).toLocaleString() : formatCurrency(tx.amount)}
+                 </div>
+                 {onDeleteTransaction && (
+                   <button 
+                     onClick={(e) => handleDeleteClick(e, tx.id)}
+                     className="p-1 text-neutral-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                   >
+                     <Trash2 size={12} />
+                   </button>
+                 )}
                </div>
             </div>
           );
         }
 
         return (
-          <div key={tx.id} className="flex items-center justify-between p-4 bg-neutral-900/50 border border-neutral-800/60 rounded-2xl">
+          <div key={tx.id} className="flex items-center justify-between p-4 bg-neutral-900/50 border border-neutral-800/60 rounded-2xl group relative overflow-hidden">
             <div className="flex items-center gap-4">
               <div className={`p-2.5 rounded-xl ${tx.type === TransactionType.BUY_IN ? 'bg-green-500/10 text-green-500' : tx.type === TransactionType.CASH_OUT ? 'bg-yellow-500/10 text-yellow-500' : 'bg-blue-500/10 text-blue-500'}`}>
                 <Icon size={18} />
@@ -97,15 +124,44 @@ export const Ledger: React.FC<LedgerProps> = ({ game, transactions, isCompact = 
                 </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-base font-mono font-black text-white">
-                {isFixedValue ? Math.round(tx.amount / chipVal).toLocaleString() : formatCurrency(tx.amount)}
+            <div className="flex items-center gap-4">
+              <div className="text-right">
+                <div className="text-base font-mono font-black text-white">
+                  {isFixedValue ? Math.round(tx.amount / chipVal).toLocaleString() : formatCurrency(tx.amount)}
+                </div>
+                {isFixedValue && <div className="text-[10px] text-neutral-500 font-mono font-bold mt-0.5">{formatCurrency(tx.amount)}</div>}
               </div>
-              {isFixedValue && <div className="text-[10px] text-neutral-500 font-mono font-bold mt-0.5">{formatCurrency(tx.amount)}</div>}
+              {onDeleteTransaction && (
+                <button 
+                  onClick={(e) => handleDeleteClick(e, tx.id)}
+                  className="p-2 text-neutral-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
           </div>
         );
       })}
+
+      <Modal isOpen={!!deletingTxId} onClose={() => setDeletingTxId(null)} title="Void Entry">
+        <div className="space-y-6">
+          <div className="flex items-start gap-4 p-4 bg-red-950/20 border border-red-500/30 rounded-2xl">
+            <AlertTriangle className="text-red-500 shrink-0 mt-1" size={24} />
+            <div className="space-y-1">
+              <p className="text-white font-bold uppercase text-xs tracking-widest">Confirm Deletion</p>
+              <p className="text-sm text-red-200/80 leading-relaxed">
+                This will void the transaction for <span className="text-white font-black underline">{txToDelete ? (txToDelete.type === 'BUY_IN' ? game.players.find(p => p.id === txToDelete.toId)?.name : game.players.find(p => p.id === txToDelete.fromId)?.name) : 'this entry'}</span>. 
+                All bank totals and player stacks will be recalculated immediately.
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setDeletingTxId(null)}>Cancel</Button>
+            <Button variant="primary" className="flex-1 bg-red-600 hover:bg-red-500" onClick={confirmDelete}>Void Entry</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

@@ -196,7 +196,7 @@ CREATE POLICY "Users can manage players" ON players FOR ALL TO authenticated USI
       case View.ACTIVE_GAME:
         return activeGame ? <ActiveGame game={activeGame} allPlayers={groupPlayers} onCreatePlayer={createPlayerInCurrentGroup} onUpdateGame={handleUpdateGame} onEndGame={() => { setViewingGameId(activeGame.id); setActiveGameId(null); setCurrentView(View.SETTLEMENT); }} onCancelEdit={() => activeGame.endTime ? handleUpdateGame({ ...activeGame, isActive: false }).then(() => { setViewingGameId(activeGame.id); setCurrentView(View.SETTLEMENT); }) : setCurrentView(View.DASHBOARD)} /> : null;
       case View.SETTLEMENT:
-        return viewingGame ? <SettlementReport game={viewingGame} onBack={() => setCurrentView(View.DASHBOARD)} onEdit={() => { handleUpdateGame({ ...viewingGame, isActive: true }); setActiveGameId(viewingGame.id); setCurrentView(View.ACTIVE_GAME); }} /> : null;
+        return viewingGame ? <SettlementReport game={viewingGame} onBack={() => setCurrentView(View.DASHBOARD)} onEdit={() => { handleUpdateGame({ ...viewingGame, isActive: true }); setActiveGameId(viewingGame.id); setCurrentView(View.ACTIVE_GAME); }} onUpdateGame={handleUpdateGame} /> : null;
       case View.HISTORY:
         return <History games={groupGames.filter(g => !g.isActive)} onSelectGame={g => { setViewingGameId(g.id); setCurrentView(View.SETTLEMENT); }} />;
       case View.PLAYERS:
