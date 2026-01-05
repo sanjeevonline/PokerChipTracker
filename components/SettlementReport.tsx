@@ -4,14 +4,14 @@ import { GameSession, TransactionType } from '../types';
 import { calculateSettlement, formatCurrency } from '../services/gameService';
 import { Button, Card, Modal } from './UI';
 import { Ledger } from './Ledger';
-import { AlertTriangle, ArrowLeft, TrendingUp, TrendingDown, Maximize2, Coins, Zap, Landmark, Repeat } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, TrendingUp, TrendingDown, Maximize2, Coins, Zap, Landmark, Repeat, Lock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid, LabelList } from 'recharts';
 
 interface SettlementReportProps {
   game: GameSession;
   onBack: () => void;
   onEdit: () => void;
-  onUpdateGame?: (game: GameSession) => void;
+  onUpdateGame: (game: GameSession) => void;
 }
 
 export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack, onEdit, onUpdateGame }) => {
@@ -21,6 +21,8 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
   const totalSettlementVolume = useMemo(() => {
     return report.players.reduce((sum, p) => p.netProfit > 0 ? sum + p.netProfit : sum, 0);
   }, [report]);
+
+  const canEdit = report.discrepancy !== 0;
 
   const highlights = useMemo(() => {
     const tx = game.transactions;
@@ -67,19 +69,20 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
   const chipVal = game.chipValue || 1;
 
   const handleDeleteTransaction = (txId: string) => {
-    if (!onUpdateGame) return;
+    if (!canEdit) return;
+    
     const txToDelete = game.transactions.find(t => t.id === txId);
     if (!txToDelete) return;
 
     let updatedPlayerStates = { ...game.playerStates };
 
-    // Post-game delete logic: Reverting final chips if a final settlement entry is deleted
+    // If deleting a final settlement entry, we should technically reset that player's final count
     if (txToDelete.type === TransactionType.CASH_OUT && txToDelete.note === 'Final Settlement') {
       const pid = txToDelete.fromId;
       if (updatedPlayerStates[pid]) {
         updatedPlayerStates[pid] = {
           ...updatedPlayerStates[pid],
-          finalChips: 0 // Reset final chips if the settle entry is voided
+          finalChips: 0
         };
       }
     }
@@ -106,7 +109,14 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
              </p>
           </div>
         </div>
-        <Button onClick={onEdit} variant="ghost" icon={<Maximize2 size={18}/>}>Edit Game</Button>
+        
+        {canEdit ? (
+          <Button onClick={onEdit} variant="ghost" icon={<Maximize2 size={18}/>} className="text-red-500 hover:bg-red-900/10">Edit Discrepancy</Button>
+        ) : (
+          <div className="flex items-center gap-2 px-4 py-2 bg-neutral-900/50 border border-neutral-800 rounded-xl text-neutral-500 text-[10px] font-black uppercase tracking-widest shadow-inner">
+            <Lock size={12} className="text-green-500/50" /> Clean Record Locked
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -297,7 +307,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
           game={game} 
           transactions={sortedTransactions} 
           isCompact={true} 
-          onDeleteTransaction={handleDeleteTransaction}
+          onDeleteTransaction={canEdit ? handleDeleteTransaction : undefined}
         />
       </Card>
 
@@ -322,7 +332,7 @@ export const SettlementReport: React.FC<SettlementReportProps> = ({ game, onBack
              game={game} 
              transactions={sortedTransactions} 
              isCompact={false} 
-             onDeleteTransaction={handleDeleteTransaction}
+             onDeleteTransaction={canEdit ? handleDeleteTransaction : undefined}
            />
         </div>
       </Modal>
