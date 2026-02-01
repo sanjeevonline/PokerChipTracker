@@ -61,28 +61,28 @@ export const PlayersList: React.FC<PlayersListProps> = ({
               onClick={() => onSelectPlayer(stat.id)}
               className="group bg-neutral-900 border border-neutral-800 hover:border-red-600/50 hover:bg-neutral-800/80 p-4 rounded-xl cursor-pointer transition-all flex items-center justify-between"
             >
-               <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white border border-neutral-700 bg-neutral-800">
+               <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white border border-neutral-700 bg-neutral-800 shrink-0">
                     {stat.name.charAt(0).toUpperCase()}
                   </div>
-                  <div>
-                    <div className="font-bold text-white text-lg group-hover:text-red-100 transition-colors">{stat.name}</div>
-                    <div className="flex items-center gap-3 text-[10px] text-neutral-500 uppercase font-bold tracking-widest">
-                       <span>{stat.gamesPlayed} Sessions</span>
+                  <div className="min-w-0">
+                    <div className="font-bold text-white text-lg group-hover:text-red-100 transition-colors truncate">{stat.name}</div>
+                    <div className="flex items-center gap-2 sm:gap-3 text-[10px] text-neutral-500 uppercase font-bold tracking-widest flex-wrap">
+                       <span>{stat.gamesPlayed} SESS</span>
                        <span className="text-neutral-700">•</span>
-                       <span>Win Rate: {stat.gamesPlayed > 0 ? Math.round((stat.wins / stat.gamesPlayed) * 100) : 0}%</span>
+                       <span>{stat.gamesPlayed > 0 ? Math.round((stat.wins / stat.gamesPlayed) * 100) : 0}% WIN</span>
                     </div>
                   </div>
                </div>
 
-               <div className="text-right flex items-center gap-4">
-                  <div className="hidden sm:block">
-                     <div className="text-[10px] text-neutral-600 uppercase font-bold tracking-widest mb-1">Lifetime Bankroll</div>
-                     <div className={`font-mono font-bold text-lg ${stat.netProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+               <div className="text-right flex items-center gap-3 sm:gap-4 shrink-0">
+                  <div className="flex flex-col items-end">
+                     <div className="hidden sm:block text-[10px] text-neutral-600 uppercase font-bold tracking-widest mb-1">Lifetime Bankroll</div>
+                     <div className={`font-mono font-bold text-base sm:text-lg whitespace-nowrap ${stat.netProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                         {stat.netProfit > 0 ? '+' : ''}{formatCurrency(stat.netProfit)}
                      </div>
                   </div>
-                  <ChevronRight className="text-neutral-600 group-hover:text-white transition-colors" />
+                  <ChevronRight className="text-neutral-600 group-hover:text-white transition-colors" size={20} />
                </div>
             </div>
           ))}
